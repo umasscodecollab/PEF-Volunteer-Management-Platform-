@@ -1,0 +1,27 @@
+# PEF Volunteer Management Platform - Phase 1 MVP
+
+## 1. Project Context & Constraints
+* **Target Audience:** Non-technical users on older Android devices with low-bandwidth connections.
+* **Architecture:** Mobile-first, Next.js PWA (Progressive Web App). Must be highly accessible (14-16px text, minimum 48px touch targets).
+* **Backend:** Live Supabase (PostgreSQL) Cloud Instance.
+* **Security:** Strict Role-Based Access Control (RBAC). Data MUST be scoped by `center_id` using Postgres Row Level Security (RLS). Client-side filtering is strictly prohibited.
+
+## 2. Tech Stack
+* **Frontend:** Next.js 14+ (App Router), TypeScript, Tailwind CSS.
+* **PWA Plugin:** `@ducanh2912/next-pwa` (Must use `--webpack` flag in dev scripts).
+* **Icons & Components:** `lucide-react`, standard functional Tailwind components (no heavy UI libraries).
+* **Backend/Auth:** `@supabase/supabase-js`. Connected via `.env.local` (`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`).
+
+## 3. Core Data Model (PostgreSQL)
+* `auth.users` (System table managed by Supabase Auth)
+* `public.users` (id [references auth.users], email, role, assigned_center_id)
+* `public.centers` (id, name, location)
+* `public.sessions` (id, center_id, topic, start_time, end_time, capacity)
+* `public.attendance` (id, session_id, user_id, status, check_in_time)
+
+## 4. AI Agent Directives (CRITICAL)
+* **NO HARDCODED MOCK DATA:** All user states must be derived dynamically from `supabase.auth.getUser()` and joined with `public.users`. Never hardcode names, emails, or center IDs in the UI components.
+* **RLS Reliance:** Data fetching must rely entirely on database-level RLS policies. Do not pass `center_id` filters in the Supabase client queries unless strictly needed for joins.
+* **Styling:** NEVER write raw CSS; use Tailwind utility classes exclusively. Build for mobile first.
+* **Performance:** Do NOT use heavy client-side rendering unless necessary. Keep dependencies to an absolute minimum to protect bundle size.
+* **Stability:** Suppress hydration warnings on the `<body>` tag to prevent browser extension crashes.
