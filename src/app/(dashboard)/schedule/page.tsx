@@ -20,18 +20,41 @@ import {
 } from "lucide-react";
 import ActiveCheckInBanner from "@/components/active-check-in-banner";
 
+import { User } from "@supabase/supabase-js";
+
 type Session = Database["public"]["Tables"]["sessions"]["Row"];
 type Center = Database["public"]["Tables"]["centers"]["Row"];
+
+interface OpportunityRoster {
+  user_id: string;
+  status: string;
+}
+
+interface OpportunitySession {
+  id: string;
+  topic: string;
+  start_time: string;
+  end_time: string;
+  capacity: number;
+  center_id: string;
+  session_rosters: OpportunityRoster[];
+}
 
 export default function SchedulePage() {
   const router = useRouter();
 
   // Auth and Profile States
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [role, setRole] = useState<string>("Volunteer");
   const [center, setCenter] = useState<Center | null>(null);
   const [assignedCenterId, setAssignedCenterId] = useState<string | null>(null);
 
-  // Sessions State
+  // Opportunities Board State (Volunteer View)
+  const [opportunities, setOpportunities] = useState<OpportunitySession[]>([]);
+  const [requestingSessionId, setRequestingSessionId] = useState<string | null>(null);
+
+  // Sessions State (Center Lead View)
   const [sessions, setSessions] = useState<Session[]>([]);
   const [fetchError, setFetchError] = useState("");
   const [showPast, setShowPast] = useState(false);
@@ -63,37 +86,60 @@ export default function SchedulePage() {
     }
   };
 
+  const fetchOpportunities = async (centerId: string) => {
+    try {
+      setFetchError("");
+      const { data, error } = await supabase
+        .from("sessions")
+        .select(`
+          *,
+          session_rosters (
+            user_id,
+            status
+          )
+        `)
+        .eq("center_id", centerId)
+        .gt("start_time", new Date().toISOString())
+        .order("start_time", { ascending: true });
+
+      if (error) {
+        setFetchError("Failed to fetch opportunities. Please try again.");
+      } else {
+        setOpportunities(data || []);
+      }
+    } catch (err) {
+      console.error("Error fetching opportunities:", err);
+      setFetchError("Unable to retrieve session opportunities.");
+    }
+  };
+
   // Fetch session and associated data
   useEffect(() => {
     const checkSessionAndFetch = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user: authUser } } = await supabase.auth.getUser();
         
-        if (!user) {
+        if (!authUser) {
           router.push("/login");
           return;
         }
+        setUser(authUser);
 
         // Fetch current user's profile and center in a single query
         const { data: profile, error: profileError } = await supabase
           .from("users")
           .select("*, centers(*)")
-          .eq("id", user.id)
+          .eq("id", authUser.id)
           .single();
 
         if (profileError || !profile) {
-          console.error(
-            "Error fetching user profile:",
-            profileError?.message,
-            profileError?.details,
-            profileError?.code
-          );
+          console.error("Error fetching user profile:", profileError?.message);
           setFetchError("Unable to retrieve user center profile.");
           setLoading(false);
           return;
         }
 
-        console.log("Fetched User Profile (schedule):", profile);
+        setRole(profile.role);
         setAssignedCenterId(profile.assigned_center_id);
 
         if (profile.centers) {
@@ -104,9 +150,15 @@ export default function SchedulePage() {
           }
         }
 
-        // Fetch Sessions
-        await fetchSessions();
-      } catch (err) {
+        // Fetch data based on role
+        if (profile.role === "Volunteer") {
+          if (profile.assigned_center_id) {
+            await fetchOpportunities(profile.assigned_center_id);
+          }
+        } else {
+          await fetchSessions();
+        }
+      } catch {
         setFetchError("An unexpected error occurred while loading schedule data.");
       } finally {
         setLoading(false);
@@ -115,6 +167,33 @@ export default function SchedulePage() {
 
     checkSessionAndFetch();
   }, [router]);
+
+  const handleRequestJoin = async (sessionId: string) => {
+    if (!user) return;
+    setRequestingSessionId(sessionId);
+    setFetchError("");
+    try {
+      const { error } = await supabase
+        .from("session_rosters")
+        .insert({
+          session_id: sessionId,
+          user_id: user.id,
+          status: "Pending"
+        });
+
+      if (error) throw error;
+
+      if (assignedCenterId) {
+        await fetchOpportunities(assignedCenterId);
+      }
+    } catch (err) {
+      console.error("Signup request error:", err);
+      const msg = err instanceof Error ? err.message : "Failed to join shift request";
+      alert(msg);
+    } finally {
+      setRequestingSessionId(null);
+    }
+  };
 
   const handleCreateSession = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,7 +265,7 @@ export default function SchedulePage() {
           setFormSuccess("");
         }, 1500);
       }
-    } catch (err) {
+    } catch {
       setFormError("A network error occurred. Please try again.");
     } finally {
       setIsSubmitting(false);
@@ -308,8 +387,146 @@ export default function SchedulePage() {
     );
   }
 
+  if (role === "Volunteer") {
+    return (
+      <div className="flex flex-col gap-6 px-5 py-6 select-none animate-fade-in relative min-h-full pb-20">
+        {/* Active Check-In Notification Banner */}
+        <ActiveCheckInBanner />
+
+        {/* Header */}
+        <header className="flex flex-col">
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-55">
+            Volunteer Shifts
+          </h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 flex items-center gap-1 font-medium">
+            <MapPin className="w-3.5 h-3.5 text-zinc-400" />
+            {center ? `${center.name}` : "Loading location..."}
+          </p>
+        </header>
+
+        {/* Fetch Error Display */}
+        {fetchError && (
+          <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/30 rounded-2xl p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-450 shrink-0 mt-0.5" />
+            <div className="flex flex-col gap-1">
+              <h4 className="text-sm font-bold text-rose-800 dark:text-rose-300">
+                Error Loading Opportunities
+              </h4>
+              <p className="text-xs text-rose-700 dark:text-rose-400/90 leading-relaxed">
+                {fetchError}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Opportunities List */}
+        <section className="flex flex-col gap-4">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-1">
+            Available Sessions ({opportunities.length})
+          </h2>
+
+          {opportunities.length === 0 ? (
+            <div className="flex flex-col items-center justify-center p-8 bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-3xl text-center shadow-sm min-h-[250px] gap-4">
+              <div className="p-4 bg-zinc-50 dark:bg-zinc-950 rounded-full text-zinc-400">
+                <Calendar className="w-8 h-8 stroke-[1.5]" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <h3 className="text-base font-bold text-zinc-900 dark:text-white">
+                  No Opportunities
+                </h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-[200px] leading-relaxed">
+                  There are no upcoming sessions scheduled for this center. Check back later!
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {opportunities.map((session) => {
+                const rosters = session.session_rosters || [];
+                const userRoster = rosters.find((r: OpportunityRoster) => r.user_id === user?.id);
+                const requestStatus = userRoster?.status || null;
+                
+                const approvedCount = rosters.filter((r: OpportunityRoster) => r.status === "Approved").length;
+                const remaining = Math.max(0, session.capacity - approvedCount);
+                const isRequesting = requestingSessionId === session.id;
+
+                let badgeColor = "bg-zinc-150 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 border-zinc-200/50";
+                if (requestStatus === "Approved") {
+                  badgeColor = "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800/40";
+                } else if (requestStatus === "Pending") {
+                  badgeColor = "bg-amber-50 text-amber-750 dark:bg-amber-950/60 dark:text-amber-400 border-amber-100 dark:border-amber-800/40";
+                } else if (requestStatus === "Denied") {
+                  badgeColor = "bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-450 border-rose-100 dark:border-rose-800/40";
+                }
+
+                return (
+                  <div
+                    key={session.id}
+                    className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-2xl p-5 shadow-sm flex flex-col gap-4 hover:shadow-md transition-shadow relative overflow-hidden"
+                  >
+                    {/* Top Row */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 font-bold uppercase tracking-wider">
+                        <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-450 stroke-[2]" />
+                        {formatDate(session.start_time)}
+                      </span>
+                      <span className="text-xs text-zinc-405 font-medium">
+                        Capacity: {session.capacity} vols
+                      </span>
+                    </div>
+
+                    {/* Middle Row */}
+                    <div className="flex flex-col gap-1">
+                      <h3 className="text-base font-bold text-zinc-900 dark:text-white leading-snug break-words">
+                        {session.topic}
+                      </h3>
+                      <span className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 mt-1 font-medium">
+                        <Clock className="w-3.5 h-3.5 text-zinc-450" />
+                        {formatTime(session.start_time)} - {formatTime(session.end_time)}
+                      </span>
+                    </div>
+
+                    {/* Bottom Row */}
+                    <div className="border-t border-zinc-100 dark:border-zinc-800/80 pt-4 flex items-center justify-between gap-4">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                          Availability
+                        </span>
+                        <span className={`text-xs font-bold mt-0.5 ${remaining > 0 ? "text-emerald-600 dark:text-emerald-450" : "text-zinc-400"}`}>
+                          {remaining > 0 ? `${remaining} spots left` : "Session Full"}
+                        </span>
+                      </div>
+
+                      {requestStatus ? (
+                        <div className={`px-4 py-2.5 rounded-xl text-xs font-bold border ${badgeColor} text-center min-w-[120px]`}>
+                          {requestStatus === "Pending" ? "Pending Approval" : requestStatus}
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleRequestJoin(session.id)}
+                          disabled={remaining <= 0 || isRequesting}
+                          className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-100 disabled:text-zinc-400 dark:bg-emerald-500 dark:hover:bg-emerald-450 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-600 text-white font-bold text-xs py-3 px-4 rounded-xl min-h-[48px] active:scale-[0.97] transition-all cursor-pointer min-w-[125px]"
+                        >
+                          {isRequesting ? (
+                            <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                          ) : (
+                            "Request to Join"
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-6 px-5 py-6 select-none animate-fade-in relative min-h-full">
+    <div className="flex flex-col gap-6 px-5 py-6 select-none animate-fade-in relative min-h-full pb-20">
       {/* Active Check-In Notification Banner */}
       <ActiveCheckInBanner />
 
@@ -456,8 +673,8 @@ export default function SchedulePage() {
 
             {formSuccess && (
               <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-900/30 rounded-2xl p-3.5 flex items-start gap-2.5">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-450 shrink-0 mt-0.5" />
-                <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-350 leading-relaxed">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-455 shrink-0 mt-0.5" />
+                <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-355 leading-relaxed">
                   {formSuccess}
                 </span>
               </div>

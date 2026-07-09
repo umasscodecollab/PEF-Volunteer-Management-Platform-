@@ -43,14 +43,12 @@ export default function ActiveCheckInBanner() {
           .from("users")
           .select("id, assigned_center_id")
           .eq("id", authUser.id)
-          .single();
+          .maybeSingle();
 
         if (profileError || !profileData) {
-          console.error("Error fetching user profile for banner:", profileError);
           if (isMounted) setLoading(false);
           return;
         }
-        if (!isMounted) return;
 
         const centerId = profileData.assigned_center_id;
         if (!centerId) {

@@ -1,11 +1,49 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Calendar, UserCheck, User } from "lucide-react";
+import { LayoutDashboard, Calendar, UserCheck, User, Users, ClipboardList, Inbox, CalendarOff } from "lucide-react";
+import { supabase } from "@/lib/supabase/client";
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const [role, setRole] = useState<string>("Volunteer");
+  const [onboardingStatus, setOnboardingStatus] = useState<string>("Application");
+
+  useEffect(() => {
+    const fetchRoleAndStatus = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: profileData } = await supabase
+          .from("users")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+
+        if (profileData) {
+          setRole(profileData.role);
+          if (profileData.role === "Volunteer") {
+            const { data: profile } = await supabase
+              .from("volunteer_profiles")
+              .select("status")
+              .eq("user_id", user.id)
+              .maybeSingle();
+
+            if (profile?.status) {
+              setOnboardingStatus(profile.status);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching nav details:", err);
+      }
+    };
+
+    fetchRoleAndStatus();
+  }, []);
 
   const navItems = [
     {
@@ -13,22 +51,60 @@ export default function BottomNav() {
       href: "/",
       icon: LayoutDashboard,
     },
-    {
-      label: "Schedule",
-      href: "/schedule",
-      icon: Calendar,
-    },
-    {
-      label: "Check-in",
-      href: "/check-in",
-      icon: UserCheck,
-    },
-    {
-      label: "Profile",
-      href: "/profile",
-      icon: User,
-    },
   ];
+
+  if (role === "Center Lead" || role === "Admin") {
+    navItems.push(
+      {
+        label: "Schedule",
+        href: "/schedule",
+        icon: Calendar,
+      },
+      {
+        label: "Volunteers",
+        href: "/volunteers",
+        icon: Users,
+      },
+      {
+        label: "Approvals",
+        href: "/approvals",
+        icon: Inbox,
+      }
+    );
+  } else {
+    // Volunteer
+    if (onboardingStatus === "Active") {
+      navItems.push(
+        {
+          label: "Schedule",
+          href: "/schedule",
+          icon: Calendar,
+        },
+        {
+          label: "Check-in",
+          href: "/check-in",
+          icon: UserCheck,
+        },
+        {
+          label: "Leave",
+          href: "/leave",
+          icon: CalendarOff,
+        }
+      );
+    } else {
+      navItems.push({
+        label: "Onboarding",
+        href: "/onboarding",
+        icon: ClipboardList,
+      });
+    }
+  }
+
+  navItems.push({
+    label: "Profile",
+    href: "/profile",
+    icon: User,
+  });
 
   return (
     <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 shadow-[0_-4px_24px_-4px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_24px_-4px_rgba(0,0,0,0.4)] z-50 transition-colors duration-200">

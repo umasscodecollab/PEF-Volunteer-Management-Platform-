@@ -167,6 +167,125 @@ export type Database = {
           },
         ]
       }
+      volunteer_profiles: {
+        Row: {
+          user_id: string
+          status: string
+          id_document_url: string | null
+          nda_document_url: string | null
+          consent_form_url: string | null
+          background_check_cleared: boolean
+        }
+        Insert: {
+          user_id: string
+          status?: string
+          id_document_url?: string | null
+          nda_document_url?: string | null
+          consent_form_url?: string | null
+          background_check_cleared?: boolean
+        }
+        Update: {
+          user_id?: string
+          status?: string
+          id_document_url?: string | null
+          nda_document_url?: string | null
+          consent_form_url?: string | null
+          background_check_cleared?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "volunteer_profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      session_rosters: {
+        Row: {
+          id: string
+          session_id: string
+          user_id: string
+          status: string
+        }
+        Insert: {
+          id?: string
+          session_id: string
+          user_id: string
+          status?: string
+        }
+        Update: {
+          id?: string
+          session_id?: string
+          user_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_rosters_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_rosters_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      leave_requests: {
+        Row: {
+          id: string
+          user_id: string
+          center_id: string
+          start_date: string
+          end_date: string
+          reason: string
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          center_id: string
+          start_date: string
+          end_date: string
+          reason: string
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          center_id?: string
+          start_date?: string
+          end_date?: string
+          reason?: string
+          status?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leave_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_requests_center_id_fkey"
+            columns: ["center_id"]
+            isOneToOne: false
+            referencedRelation: "centers"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never

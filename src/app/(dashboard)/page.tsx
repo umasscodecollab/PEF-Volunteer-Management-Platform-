@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
-import { Users, Clock, Flame, AlertCircle, Loader2 } from "lucide-react";
+import { Users, Clock, Flame, AlertCircle, ArrowRight, ClipboardList, ShieldAlert, CheckCircle } from "lucide-react";
 import { User } from "@supabase/supabase-js";
 import ActiveCheckInBanner from "@/components/active-check-in-banner";
 
@@ -18,6 +18,13 @@ interface Profile {
   } | {
     name: string;
   }[] | null;
+  volunteer_profiles?: {
+    status: string;
+    background_check_cleared: boolean;
+  } | {
+    status: string;
+    background_check_cleared: boolean;
+  }[] | null;
 }
 
 export default function CenterLeadDashboard() {
@@ -25,6 +32,7 @@ export default function CenterLeadDashboard() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState<number>(0);
 
   useEffect(() => {
     const fetchUserAndProfile = async () => {
@@ -36,22 +44,78 @@ export default function CenterLeadDashboard() {
         }
         setUser(user);
 
-        const { data: profileData, error: profileError } = await supabase
+        let profileData = null;
+        const { data: existingProfile, error: profileError } = await supabase
           .from("users")
           .select("*, centers(name)")
           .eq("id", user.id)
-          .single();
+          .maybeSingle();
 
         if (profileError) {
           console.error(
             "Error fetching user profile:",
-            profileError.message,
-            profileError.details,
-            profileError.code
+            profileError.message
           );
+        } else if (existingProfile) {
+          profileData = existingProfile;
         } else {
-          console.log("Fetched User Profile (page):", profileData);
-          setProfile(profileData);
+          // Provision default user profile in public.users if missing
+          const { data: centers } = await supabase.from("centers").select("id").limit(1);
+          const defaultCenterId = centers && centers.length > 0 ? centers[0].id : null;
+
+          const { data: newProfile, error: createError } = await supabase
+            .from("users")
+            .insert({
+              id: user.id,
+              email: user.email || "",
+              role: "Volunteer",
+              assigned_center_id: defaultCenterId
+            })
+            .select("*, centers(name)")
+            .maybeSingle();
+
+          if (!createError && newProfile) {
+            profileData = newProfile;
+          } else {
+            console.error("Failed to provision default user profile:", createError?.message);
+          }
+        }
+
+        if (profileData) {
+          // Fetch volunteer profiles separately
+          let volunteerProfile = null;
+          const { data: volData, error: volError } = await supabase
+            .from("volunteer_profiles")
+            .select("status, background_check_cleared")
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+          if (!volError && volData) {
+            volunteerProfile = volData;
+          }
+
+          const combinedProfile = {
+            ...profileData,
+            volunteer_profiles: volunteerProfile,
+          };
+
+          console.log("Fetched User Profile (page):", combinedProfile);
+          setProfile(combinedProfile as unknown as Profile);
+
+          // Fetch pending approvals count for Center Lead / Admin
+          if (profileData.role === "Center Lead" || profileData.role === "Admin") {
+            if (profileData.assigned_center_id) {
+              const { count, error: countError } = await supabase
+                .from("session_rosters")
+                .select("id, sessions!inner(center_id)", { count: "exact", head: true })
+                .eq("status", "Pending")
+                .eq("sessions.center_id", profileData.assigned_center_id);
+
+              if (!countError && count !== null) {
+                setPendingApprovalsCount(count);
+              }
+            }
+          }
         }
       } catch (err) {
         console.error("Unexpected error on dashboard mount:", err);
@@ -92,6 +156,10 @@ export default function CenterLeadDashboard() {
     : (centersData?.name || "No Center Assigned");
   const roleName = profile?.role || "Volunteer";
 
+  const rawVolProfile = profile?.volunteer_profiles;
+  const volProfile = Array.isArray(rawVolProfile) ? rawVolProfile[0] : rawVolProfile;
+  const onboardingStatus = volProfile?.status || "Application";
+
   if (loading) {
     return (
       <div className="flex flex-col gap-6 px-5 py-6 animate-pulse select-none">
@@ -126,7 +194,7 @@ export default function CenterLeadDashboard() {
   }
 
   return (
-    <div className="flex flex-col gap-6 px-5 py-6 select-none animate-fade-in">
+    <div className="flex flex-col gap-6 px-5 py-6 select-none animate-fade-in pb-20">
       {/* Active Check-In Notification Banner */}
       <ActiveCheckInBanner />
 
@@ -138,7 +206,7 @@ export default function CenterLeadDashboard() {
           </span>
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
         </div>
-        <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-55 mt-2">
+        <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 mt-2">
           Welcome back, {getDisplayName()}!
         </h1>
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
@@ -146,95 +214,244 @@ export default function CenterLeadDashboard() {
         </p>
       </header>
 
-      {/* Primary Stat Card: Session Fill Rate */}
-      <section className="bg-white dark:bg-zinc-900 rounded-2xl p-5 border border-zinc-150 dark:border-zinc-800 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md">
-        {/* Subtle decorative background gradient */}
-        <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full blur-2xl pointer-events-none" />
+      {roleName === "Volunteer" ? (
+        /* VOLUNTEER SPECIFIC VIEW */
+        <div className="flex flex-col gap-6">
+          {onboardingStatus !== "Active" ? (
+            /* ONBOARDING ALERT BANNER */
+            <div className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-2xl p-5 shadow-sm flex flex-col gap-4 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl" />
+              
+              <div className="flex items-start gap-3">
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30 rounded-xl text-amber-600 dark:text-amber-400 shrink-0">
+                  <ShieldAlert className="w-6 h-6 stroke-[1.8]" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <h3 className="text-sm font-bold text-zinc-900 dark:text-white">
+                    Onboarding Required
+                  </h3>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed font-medium">
+                    Your volunteer status is currently <span className="font-semibold text-amber-600 dark:text-amber-400">{onboardingStatus}</span>. Please complete document uploads and clear checks to activate your profile.
+                  </p>
+                </div>
+              </div>
 
-        <div className="flex items-start justify-between">
-          <div className="flex flex-col">
-            <span className="text-xs font-semibold tracking-wider text-zinc-500 dark:text-zinc-400 uppercase">
-              Session Fill Rate
-            </span>
-            <span className="text-4xl font-extrabold tracking-tight text-zinc-900 dark:text-white mt-1.5">
-              {stats.fillRate}%
-            </span>
-          </div>
-          <div className="p-3 bg-emerald-55 dark:bg-emerald-950/40 rounded-xl text-emerald-600 dark:text-emerald-400">
-            <Flame className="w-6 h-6 stroke-[2.2]" />
+              <button
+                onClick={() => router.push("/onboarding")}
+                className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-650 text-white active:scale-[0.98] py-3.5 rounded-xl font-bold text-xs min-h-[48px] transition-all shadow-md shadow-amber-500/10"
+              >
+                <span>Upload NDA, Consent & ID</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            /* FULLY ACTIVE VOLUNTEER CARD */
+            <div className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-2xl p-5 shadow-sm flex items-center gap-3">
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-xl text-emerald-600 dark:text-emerald-450">
+                <CheckCircle className="w-6 h-6 stroke-[2]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-zinc-900 dark:text-white">
+                  Active Volunteer Account
+                </h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  Your onboarding process is fully completed and verified!
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Tactical Action Buttons for Volunteer */}
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              onClick={() => {
+                if (onboardingStatus !== "Active") {
+                  alert("Onboarding required: Please complete your onboarding documents before joining sessions.");
+                  router.push("/onboarding");
+                } else {
+                  router.push("/check-in");
+                }
+              }}
+              className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-2xl p-4 shadow-sm flex flex-col justify-between min-h-[110px] text-left active:scale-[0.97] transition-all cursor-pointer"
+            >
+              <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-455 rounded-xl self-start">
+                <Users className="w-5 h-5" />
+              </div>
+              <div className="mt-2">
+                <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block">Session Check-In</span>
+                <span className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5 block font-medium">Record attendance</span>
+              </div>
+            </button>
+
+            <button
+              onClick={() => {
+                if (onboardingStatus !== "Active") {
+                  alert("Onboarding required: Please complete your onboarding documents to check schedules.");
+                  router.push("/onboarding");
+                } else {
+                  router.push("/schedule");
+                }
+              }}
+              className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-2xl p-4 shadow-sm flex flex-col justify-between min-h-[110px] text-left active:scale-[0.97] transition-all cursor-pointer"
+            >
+              <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-455 rounded-xl self-start">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div className="mt-2">
+                <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block">Weekly Schedule</span>
+                <span className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5 block font-medium">View timings</span>
+              </div>
+            </button>
           </div>
         </div>
+      ) : (
+        /* CENTER LEAD & ADMIN VIEW */
+        <div className="flex flex-col gap-6">
+          {/* Pending Approvals Alert Banner */}
+          {pendingApprovalsCount > 0 && (
+            <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-250/50 dark:border-amber-900/30 rounded-2xl p-5 shadow-sm flex flex-col gap-4 relative overflow-hidden animate-fade-in">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
+              
+              <div className="flex items-start gap-3">
+                <div className="p-3 bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 rounded-xl shrink-0">
+                  <AlertCircle className="w-6 h-6 stroke-[2]" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <h3 className="text-sm font-bold text-zinc-900 dark:text-white">
+                    Pending Shift Approvals
+                  </h3>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed font-medium">
+                    You have <span className="font-semibold text-amber-600 dark:text-amber-405">{pendingApprovalsCount}</span> pending volunteer shift signup request{pendingApprovalsCount === 1 ? "" : "s"} awaiting your review.
+                  </p>
+                </div>
+              </div>
 
-        {/* High-Fidelity Progress Indicator */}
-        <div className="mt-4">
-          <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-3 rounded-full overflow-hidden">
-            <div
-              className="bg-gradient-to-r from-emerald-500 to-teal-500 dark:from-emerald-400 dark:to-teal-400 h-full rounded-full transition-all duration-500"
-              style={{ width: `${stats.fillRate}%` }}
-            />
+              <button
+                onClick={() => router.push("/approvals")}
+                className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-650 text-white active:scale-[0.98] py-3.5 rounded-xl font-bold text-xs min-h-[48px] transition-all shadow-md shadow-amber-500/10 cursor-pointer"
+              >
+                <span>Review Pending Shifts</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Primary Stat Card: Session Fill Rate */}
+          <section className="bg-white dark:bg-zinc-900 rounded-2xl p-5 border border-zinc-150 dark:border-zinc-800 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 dark:bg-emerald-400/5 rounded-full blur-2xl pointer-events-none" />
+
+            <div className="flex items-start justify-between">
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold tracking-wider text-zinc-500 dark:text-zinc-400 uppercase">
+                  Session Fill Rate
+                </span>
+                <span className="text-4xl font-extrabold tracking-tight text-zinc-900 dark:text-white mt-1.5">
+                  {stats.fillRate}%
+                </span>
+              </div>
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl text-emerald-600 dark:text-emerald-400">
+                <Flame className="w-6 h-6 stroke-[2.2]" />
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-3 rounded-full overflow-hidden">
+                <div
+                  className="bg-gradient-to-r from-emerald-500 to-teal-500 dark:from-emerald-400 dark:to-teal-400 h-full rounded-full transition-all duration-500"
+                  style={{ width: `${stats.fillRate}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-xs text-zinc-500 dark:text-zinc-400 mt-2.5 font-medium">
+                <span>
+                  {stats.filledSlots} of {stats.totalSlots} slots filled
+                </span>
+                <span className="text-emerald-600 dark:text-emerald-400">
+                  {stats.totalSlots - stats.filledSlots} empty
+                </span>
+              </div>
+            </div>
+          </section>
+
+          {/* Quick Roster Management Action Card */}
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-2xl p-5 shadow-sm flex flex-col gap-4 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl" />
+            
+            <div className="flex items-start gap-3">
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-xl text-emerald-600 dark:text-emerald-450 shrink-0">
+                <ClipboardList className="w-6 h-6 stroke-[1.8]" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <h3 className="text-sm font-bold text-zinc-900 dark:text-white">
+                  Volunteer Roster & Onboarding
+                </h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed font-medium">
+                  Review uploaded NDA / ID / Consent documents, toggle background checks, and promote volunteers along onboarding pipeline stages.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => router.push("/volunteers")}
+              className="w-full flex items-center justify-center gap-2 bg-emerald-650 hover:bg-emerald-600 text-white active:scale-[0.98] py-3.5 rounded-xl font-bold text-xs min-h-[48px] transition-all shadow-md shadow-emerald-650/10"
+            >
+              <span>Manage Volunteers Roster</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
-          <div className="flex justify-between text-xs text-zinc-500 dark:text-zinc-400 mt-2.5 font-medium">
-            <span>
-              {stats.filledSlots} of {stats.totalSlots} slots filled
-            </span>
-            <span className="text-emerald-600 dark:text-emerald-400">
-              {stats.totalSlots - stats.filledSlots} empty
-            </span>
+
+          {/* Supporting Context Section */}
+          <section className="grid grid-cols-2 gap-4">
+            {/* Session Count Card */}
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 border border-zinc-150 dark:border-zinc-800 shadow-sm flex flex-col justify-between min-h-[100px]">
+              <div className="flex items-center justify-between text-zinc-400">
+                <Clock className="w-5 h-5 stroke-[1.8]" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                  Sessions
+                </span>
+              </div>
+              <div className="mt-3">
+                <span className="text-2xl font-bold text-zinc-900 dark:text-white">
+                  {stats.activeSessions}/{stats.totalSessions}
+                </span>
+                <p className="text-[11px] text-zinc-550 dark:text-zinc-400 mt-0.5 font-medium">
+                  Completed today
+                </p>
+              </div>
+            </div>
+
+            {/* Active Volunteers Card */}
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 border border-zinc-150 dark:border-zinc-800 shadow-sm flex flex-col justify-between min-h-[100px]">
+              <div className="flex items-center justify-between text-zinc-400">
+                <Users className="w-5 h-5 stroke-[1.8]" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-550 dark:text-zinc-400">
+                  Present
+                </span>
+              </div>
+              <div className="mt-3">
+                <span className="text-2xl font-bold text-zinc-900 dark:text-white">
+                  {stats.presentVolunteers}
+                </span>
+                <p className="text-[11px] text-zinc-550 dark:text-zinc-400 mt-0.5 font-medium">
+                  Volunteers active
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Accessibility Alert banner */}
+          <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/30 rounded-xl p-3.5 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-450 shrink-0 mt-0.5 stroke-[2]" />
+            <div className="flex flex-col gap-0.5">
+              <h4 className="text-xs font-semibold text-amber-800 dark:text-amber-300">
+                Low Attendance Warning
+              </h4>
+              <p className="text-xs text-amber-700/90 dark:text-amber-400/90 leading-relaxed font-medium">
+                2 volunteers haven&apos;t checked in for the upcoming 4:00 PM session.
+              </p>
+            </div>
           </div>
         </div>
-      </section>
-
-      {/* Supporting Context Section */}
-      <section className="grid grid-cols-2 gap-4">
-        {/* Session Count Card */}
-        <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 border border-zinc-150 dark:border-zinc-800 shadow-sm flex flex-col justify-between min-h-[100px]">
-          <div className="flex items-center justify-between text-zinc-400">
-            <Clock className="w-5 h-5 stroke-[1.8]" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-550 dark:text-zinc-400">
-              Sessions
-            </span>
-          </div>
-          <div className="mt-3">
-            <span className="text-2xl font-bold text-zinc-900 dark:text-white">
-              {stats.activeSessions}/{stats.totalSessions}
-            </span>
-            <p className="text-[11px] text-zinc-550 dark:text-zinc-400 mt-0.5">
-              Completed today
-            </p>
-          </div>
-        </div>
-
-        {/* Active Volunteers Card */}
-        <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 border border-zinc-150 dark:border-zinc-800 shadow-sm flex flex-col justify-between min-h-[100px]">
-          <div className="flex items-center justify-between text-zinc-400">
-            <Users className="w-5 h-5 stroke-[1.8]" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-550 dark:text-zinc-400">
-              Present
-            </span>
-          </div>
-          <div className="mt-3">
-            <span className="text-2xl font-bold text-zinc-900 dark:text-white">
-              {stats.presentVolunteers}
-            </span>
-            <p className="text-[11px] text-zinc-550 dark:text-zinc-400 mt-0.5">
-              Volunteers active
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Accessibility Alert banner */}
-      <div className="mt-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/30 rounded-xl p-3.5 flex items-start gap-3">
-        <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 stroke-[2]" />
-        <div className="flex flex-col gap-0.5">
-          <h4 className="text-xs font-semibold text-amber-800 dark:text-amber-300">
-            Low Attendance Warning
-          </h4>
-          <p className="text-xs text-amber-700/90 dark:text-amber-400/90 leading-relaxed font-medium">
-            2 volunteers haven&apos;t checked in for the upcoming 4:00 PM session.
-          </p>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
