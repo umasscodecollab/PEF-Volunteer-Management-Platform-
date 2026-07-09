@@ -14,8 +14,11 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle2,
-  ChevronRight
+  ChevronRight,
+  ChevronDown,
+  History
 } from "lucide-react";
+import ActiveCheckInBanner from "@/components/active-check-in-banner";
 
 type Session = Database["public"]["Tables"]["sessions"]["Row"];
 type Center = Database["public"]["Tables"]["centers"]["Row"];
@@ -31,6 +34,7 @@ export default function SchedulePage() {
   // Sessions State
   const [sessions, setSessions] = useState<Session[]>([]);
   const [fetchError, setFetchError] = useState("");
+  const [showPast, setShowPast] = useState(false);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -40,16 +44,24 @@ export default function SchedulePage() {
 
   // Form Fields
   const [topic, setTopic] = useState("");
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [startTime, setStartTime] = useState("10:00");
   const [endTime, setEndTime] = useState("11:30");
   const [capacity, setCapacity] = useState("4");
 
-  // Format today's date for defaults
-  useEffect(() => {
-    const today = new Date().toISOString().split("T")[0];
-    setDate(today);
-  }, []);
+  const fetchSessions = async () => {
+    setFetchError("");
+    const { data, error } = await supabase
+      .from("sessions")
+      .select("*")
+      .order("start_time", { ascending: true });
+
+    if (error) {
+      setFetchError("Failed to fetch sessions. Please try again.");
+    } else {
+      setSessions(data || []);
+    }
+  };
 
   // Fetch session and associated data
   useEffect(() => {
@@ -103,20 +115,6 @@ export default function SchedulePage() {
 
     checkSessionAndFetch();
   }, [router]);
-
-  const fetchSessions = async () => {
-    setFetchError("");
-    const { data, error } = await supabase
-      .from("sessions")
-      .select("*")
-      .order("start_time", { ascending: true });
-
-    if (error) {
-      setFetchError("Failed to fetch sessions. Please try again.");
-    } else {
-      setSessions(data || []);
-    }
-  };
 
   const handleCreateSession = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -213,6 +211,92 @@ export default function SchedulePage() {
     });
   };
 
+  // Group and sort sessions
+  const { todaySessions, upcomingSessions, pastSessions } = React.useMemo(() => {
+    const now = new Date();
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const endOfToday = new Date(now);
+    endOfToday.setHours(23, 59, 59, 999);
+
+    const today: Session[] = [];
+    const upcoming: Session[] = [];
+    const past: Session[] = [];
+
+    sessions.forEach(session => {
+      const sessionStart = new Date(session.start_time);
+      if (sessionStart < startOfToday) {
+        past.push(session);
+      } else if (sessionStart > endOfToday) {
+        upcoming.push(session);
+      } else {
+        today.push(session);
+      }
+    });
+
+    // Today and Upcoming sorted chronological ascending (standard ascending order from fetchSessions)
+    // Past sorted chronological descending (most recent first)
+    past.sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
+
+    return {
+      todaySessions: today,
+      upcomingSessions: upcoming,
+      pastSessions: past,
+    };
+  }, [sessions]);
+
+  const renderSessionCard = (session: Session, tag: "Today" | "Upcoming" | "Past") => {
+    let badgeClass = "bg-zinc-100 text-zinc-800 dark:bg-zinc-850 dark:text-zinc-350 border-zinc-200/40";
+    if (tag === "Today") {
+      badgeClass = "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-405 border-amber-250/20";
+    } else if (tag === "Upcoming") {
+      badgeClass = "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-400 border-indigo-250/20";
+    }
+
+    return (
+      <div
+        key={session.id}
+        className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-2xl p-4 shadow-sm flex flex-col gap-3.5 hover:shadow-md transition-shadow active:bg-zinc-50 dark:active:bg-zinc-850/50 animate-fade-in"
+      >
+        <div className="flex items-center justify-between">
+          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider ${badgeClass}`}>
+            {tag}
+          </span>
+          <span className="text-xs text-zinc-550 dark:text-zinc-400 flex items-center gap-1.5 font-medium">
+            <Calendar className="w-3.5 h-3.5 stroke-[1.8]" />
+            {formatDate(session.start_time)}
+          </span>
+        </div>
+
+        <div className="flex justify-between items-end">
+          <div className="flex-1 min-w-0 pr-4">
+            <h3 className="text-base font-bold text-zinc-900 dark:text-white leading-snug break-words">
+              {session.topic}
+            </h3>
+            <div className="flex flex-col gap-1 mt-2">
+              <span className="text-xs text-zinc-555 dark:text-zinc-400 flex items-center gap-1.5 font-medium">
+                <Clock className="w-3.5 h-3.5 text-zinc-400" />
+                {formatTime(session.start_time)} - {formatTime(session.end_time)}
+              </span>
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5 text-zinc-450 dark:text-zinc-500 shrink-0" />
+        </div>
+
+        <div className="border-t border-zinc-100 dark:border-zinc-800/80 pt-3 flex justify-between items-center text-xs">
+          <span className="text-zinc-500 dark:text-zinc-400 flex items-center gap-1 font-medium">
+            <Users className="w-3.5 h-3.5 text-zinc-400" />
+            Target Capacity
+          </span>
+          <span className="font-bold text-zinc-800 dark:text-zinc-200 bg-zinc-50 dark:bg-zinc-950 px-2 py-0.5 rounded-md border border-zinc-200/20">
+            {session.capacity} Volunteers
+          </span>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center min-h-[50vh] gap-3">
@@ -226,6 +310,9 @@ export default function SchedulePage() {
 
   return (
     <div className="flex flex-col gap-6 px-5 py-6 select-none animate-fade-in relative min-h-full">
+      {/* Active Check-In Notification Banner */}
+      <ActiveCheckInBanner />
+
       {/* Header */}
       <header className="flex items-start justify-between">
         <div className="flex flex-col">
@@ -284,47 +371,53 @@ export default function SchedulePage() {
             </div>
           </div>
         ) : (
-          sessions.map((session) => (
-            <div
-              key={session.id}
-              className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-2xl p-4 shadow-sm flex flex-col gap-3.5 hover:shadow-md transition-shadow active:bg-zinc-50 dark:active:bg-zinc-850/50"
-            >
-              <div className="flex items-center justify-between">
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-300 border border-zinc-200/40 uppercase tracking-wider">
-                  Upcoming
-                </span>
-                <span className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 font-medium">
-                  <Calendar className="w-3.5 h-3.5 stroke-[1.8]" />
-                  {formatDate(session.start_time)}
-                </span>
-              </div>
-
-              <div className="flex justify-between items-end">
-                <div className="flex-1 min-w-0 pr-4">
-                  <h3 className="text-base font-bold text-zinc-900 dark:text-white leading-snug break-words">
-                    {session.topic}
-                  </h3>
-                  <div className="flex flex-col gap-1 mt-2">
-                    <span className="text-xs text-zinc-550 dark:text-zinc-400 flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-zinc-400" />
-                      {formatTime(session.start_time)} - {formatTime(session.end_time)}
-                    </span>
-                  </div>
+          <div className="flex flex-col gap-6">
+            {/* Today's Sessions */}
+            {todaySessions.length > 0 && (
+              <div className="flex flex-col gap-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-1">
+                  Today&apos;s Sessions ({todaySessions.length})
+                </h3>
+                <div className="flex flex-col gap-4">
+                  {todaySessions.map(session => renderSessionCard(session, "Today"))}
                 </div>
-                <ChevronRight className="w-5 h-5 text-zinc-450 dark:text-zinc-500 shrink-0" />
               </div>
+            )}
 
-              <div className="border-t border-zinc-100 dark:border-zinc-800/80 pt-3 flex justify-between items-center text-xs">
-                <span className="text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
-                  <Users className="w-3.5 h-3.5 text-zinc-400" />
-                  Target Capacity
-                </span>
-                <span className="font-bold text-zinc-800 dark:text-zinc-200 bg-zinc-50 dark:bg-zinc-950 px-2 py-0.5 rounded-md border border-zinc-200/20">
-                  {session.capacity} Volunteers
-                </span>
+            {/* Upcoming Sessions */}
+            {upcomingSessions.length > 0 && (
+              <div className="flex flex-col gap-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-1">
+                  Upcoming Sessions ({upcomingSessions.length})
+                </h3>
+                <div className="flex flex-col gap-4">
+                  {upcomingSessions.map(session => renderSessionCard(session, "Upcoming"))}
+                </div>
               </div>
-            </div>
-          ))
+            )}
+
+            {/* Collapsible Past Sessions */}
+            {pastSessions.length > 0 && (
+              <div className="flex flex-col gap-3 mt-2">
+                <button
+                  onClick={() => setShowPast(!showPast)}
+                  className="flex items-center justify-between w-full p-4 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-850/50 border border-zinc-150 dark:border-zinc-800 rounded-2xl transition-all font-bold text-sm text-zinc-700 dark:text-zinc-300 min-h-[48px] shadow-sm select-none active:scale-[0.99]"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <History className="w-4.5 h-4.5 text-zinc-450 dark:text-zinc-500" />
+                    <span>Past Sessions ({pastSessions.length})</span>
+                  </span>
+                  <ChevronDown className={`w-5 h-5 text-zinc-450 transition-transform duration-200 ${showPast ? "rotate-180" : ""}`} />
+                </button>
+
+                {showPast && (
+                  <div className="flex flex-col gap-4 mt-1 animate-fade-in">
+                    {pastSessions.map(session => renderSessionCard(session, "Past"))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </section>
 

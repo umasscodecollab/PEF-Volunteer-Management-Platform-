@@ -4,12 +4,27 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { Users, Clock, Flame, AlertCircle, Loader2 } from "lucide-react";
+import { User } from "@supabase/supabase-js";
+import ActiveCheckInBanner from "@/components/active-check-in-banner";
+
+interface Profile {
+  id: string;
+  email: string | null;
+  role: string;
+  assigned_center_id: string | null;
+  created_at?: string;
+  centers?: {
+    name: string;
+  } | {
+    name: string;
+  }[] | null;
+}
 
 export default function CenterLeadDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
     const fetchUserAndProfile = async () => {
@@ -112,6 +127,9 @@ export default function CenterLeadDashboard() {
 
   return (
     <div className="flex flex-col gap-6 px-5 py-6 select-none animate-fade-in">
+      {/* Active Check-In Notification Banner */}
+      <ActiveCheckInBanner />
+
       {/* Warm Greeting Hero */}
       <header className="flex flex-col">
         <div className="flex items-center gap-2">
@@ -212,8 +230,8 @@ export default function CenterLeadDashboard() {
           <h4 className="text-xs font-semibold text-amber-800 dark:text-amber-300">
             Low Attendance Warning
           </h4>
-          <p className="text-xs text-amber-700/90 dark:text-amber-400/90 leading-relaxed">
-            2 volunteers haven't checked in for the upcoming 4:00 PM session.
+          <p className="text-xs text-amber-700/90 dark:text-amber-400/90 leading-relaxed font-medium">
+            2 volunteers haven&apos;t checked in for the upcoming 4:00 PM session.
           </p>
         </div>
       </div>
