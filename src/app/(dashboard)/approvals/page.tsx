@@ -84,7 +84,7 @@ export default function ApprovalsPage() {
   const fetchRequests = useCallback(async (centerId: string) => {
     try {
       const { data, error } = await supabase
-        .from("session_rosters")
+        .from("session_enrollments")
         .select(`
           id,
           session_id,
@@ -198,7 +198,7 @@ export default function ApprovalsPage() {
     setSuccessMessage(null);
     try {
       const { error } = await supabase
-        .from("session_rosters")
+        .from("session_enrollments")
         .update({ status: nextStatus })
         .eq("id", requestId);
 
@@ -236,7 +236,7 @@ export default function ApprovalsPage() {
         // 2. Query matching sessions falling between leave start_date and end_date
         // for this volunteer's center.
         const { data: overlappingRosters, error: rosterError } = await supabase
-          .from("session_rosters")
+          .from("session_enrollments")
           .select(`
             id,
             session_id,
@@ -259,7 +259,7 @@ export default function ApprovalsPage() {
         if (overlappingRosters && overlappingRosters.length > 0) {
           const rosterIds = overlappingRosters.map((r) => r.id);
           const { error: deleteError } = await supabase
-            .from("session_rosters")
+            .from("session_enrollments")
             .delete()
             .in("id", rosterIds);
 

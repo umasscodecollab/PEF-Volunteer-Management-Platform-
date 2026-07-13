@@ -143,9 +143,9 @@ export default function OnboardingPage() {
     setSuccessMessage(null);
 
     try {
-      // Create folder-path matching user.id to satisfy RLS policies
-      const fileExt = file.name.split(".").pop() || "pdf";
-      const storagePath = `${user.id}/${fileNamePrefix}.${fileExt}`;
+      // Create folder-path matching user.id and include required prefix for RLS
+      const safeFilename = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+      const storagePath = `${user.id}/${fileNamePrefix}_-_${safeFilename}`;
 
       // Upload file to Supabase storage (private bucket: 'onboarding_documents')
       const { error: uploadError } = await supabase.storage
@@ -375,17 +375,22 @@ export default function OnboardingPage() {
                       <span>Uploading document...</span>
                     </button>
                   ) : isUploaded ? (
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 flex items-center gap-2 bg-emerald-55 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 text-emerald-700 dark:text-emerald-400 py-3 px-4 rounded-xl font-bold text-xs min-h-[48px]">
-                        <CheckCircle className="w-4 h-4 stroke-[2.2]" />
-                        <span className="truncate">Document Uploaded</span>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 flex items-center gap-2 bg-emerald-55 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 text-emerald-700 dark:text-emerald-400 py-3 px-4 rounded-xl font-bold text-xs min-h-[48px]">
+                          <CheckCircle className="w-4 h-4 stroke-[2.2]" />
+                          <span className="truncate">Document Uploaded</span>
+                        </div>
+                        <label
+                          htmlFor={`file-input-${doc.key}`}
+                          className="flex items-center justify-center bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 text-zinc-650 dark:text-zinc-350 active:scale-[0.97] py-3 px-4 rounded-xl font-bold text-xs min-h-[48px] cursor-pointer transition-all duration-150 shrink-0"
+                        >
+                          Change
+                        </label>
                       </div>
-                      <label
-                        htmlFor={`file-input-${doc.key}`}
-                        className="flex items-center justify-center bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 text-zinc-650 dark:text-zinc-350 active:scale-[0.97] py-3 px-4 rounded-xl font-bold text-xs min-h-[48px] cursor-pointer transition-all duration-150"
-                      >
-                        Change
-                      </label>
+                      <div className="text-[11px] text-zinc-500 dark:text-zinc-400 px-1 truncate font-medium">
+                        File: <span className="font-semibold text-zinc-700 dark:text-zinc-300">{(profile?.[doc.key as keyof VolunteerProfile] as string | null)?.includes("_-_") ? (profile?.[doc.key as keyof VolunteerProfile] as string | null)?.split("_-_").pop() : (profile?.[doc.key as keyof VolunteerProfile] as string | null)?.split("/").pop()}</span>
+                      </div>
                     </div>
                   ) : (
                     <label

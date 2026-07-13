@@ -10,6 +10,7 @@ import {
   Loader2,
   ShieldAlert,
   TrendingUp,
+  TrendingDown,
   UserCheck,
   Eye,
   Building
@@ -184,13 +185,14 @@ export default function VolunteersPage() {
   const handleToggleBackgroundCheck = async (volunteerId: string, currentVal: boolean) => {
     setUpdatingId(volunteerId);
     setSuccessMessage(null);
+    setErrorMessage(null);
     try {
       const { error } = await supabase
         .from("volunteer_profiles")
-        .upsert({
-          user_id: volunteerId,
+        .update({
           background_check_cleared: !currentVal,
-        }, { onConflict: "user_id" });
+        })
+        .eq("user_id", volunteerId);
 
       if (error) throw error;
 
@@ -214,16 +216,31 @@ export default function VolunteersPage() {
     if (currentIndex === -1 || currentIndex === pipeline.length - 1) return;
     
     const nextStatus = pipeline[currentIndex + 1];
+
+    // Verify background check clearance before promotion
+    const volunteer = volunteers.find((v) => v.id === volunteerId);
+    const rawProfile = volunteer?.volunteer_profiles;
+    const profile = Array.isArray(rawProfile) ? rawProfile[0] : rawProfile;
+    const bgCleared = profile?.background_check_cleared || false;
+
+    if (!bgCleared) {
+      const msg = `Volunteer needs to pass background check before being promoted to ${nextStatus}.`;
+      setErrorMessage(msg);
+      setSuccessMessage(null);
+      return;
+    }
+
     setUpdatingId(volunteerId);
     setSuccessMessage(null);
+    setErrorMessage(null);
 
     try {
       const { error } = await supabase
         .from("volunteer_profiles")
-        .upsert({
-          user_id: volunteerId,
+        .update({
           status: nextStatus,
-        }, { onConflict: "user_id" });
+        })
+        .eq("user_id", volunteerId);
 
       if (error) throw error;
 
@@ -235,6 +252,40 @@ export default function VolunteersPage() {
       console.error("Promotion error:", err);
       const msg = err instanceof Error ? err.message : "Unknown error";
       alert(`Failed to promote volunteer: ${msg}`);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const handleDemoteStatus = async (volunteerId: string, currentStatus: string) => {
+    const pipeline = ["Application", "Screening", "Orientation", "Active"];
+    const currentIndex = pipeline.indexOf(currentStatus);
+    
+    if (currentIndex === -1 || currentIndex === 0) return;
+    
+    const prevStatus = pipeline[currentIndex - 1];
+    setUpdatingId(volunteerId);
+    setSuccessMessage(null);
+    setErrorMessage(null);
+
+    try {
+      const { error } = await supabase
+        .from("volunteer_profiles")
+        .update({
+          status: prevStatus,
+        })
+        .eq("user_id", volunteerId);
+
+      if (error) throw error;
+
+      setSuccessMessage(`Volunteer moved back to ${prevStatus}!`);
+      if (leadProfile?.assigned_center_id) {
+        await fetchRoster(leadProfile.assigned_center_id);
+      }
+    } catch (err) {
+      console.error("Demotion error:", err);
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      alert(`Failed to move back volunteer: ${msg}`);
     } finally {
       setUpdatingId(null);
     }
@@ -321,6 +372,16 @@ export default function VolunteersPage() {
           <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-450 shrink-0 mt-0.5" />
           <p className="text-xs font-medium text-emerald-800 dark:text-emerald-450 leading-relaxed">
             {successMessage}
+          </p>
+        </div>
+      )}
+
+      {/* Error Notification Alert */}
+      {errorMessage && leadProfile && (
+        <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-200/40 dark:border-rose-900/30 rounded-xl p-4 flex items-start gap-3 animate-fade-in">
+          <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-455 shrink-0 mt-0.5" />
+          <p className="text-xs font-medium text-rose-800 dark:text-rose-450 leading-relaxed">
+            {errorMessage}
           </p>
         </div>
       )}
@@ -445,9 +506,9 @@ export default function VolunteersPage() {
                   </div>
                 </div>
 
-                {/* Pipeline Promotion Button */}
-                {!isCompleted && (
-                  <div className="mt-1 pt-1">
+                {/* Pipeline Actions */}
+                <div className="flex flex-col gap-2 mt-1 pt-1">
+                  {!isCompleted ? (
                     <button
                       onClick={() => handlePromoteStatus(vol.id, status)}
                       className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:hover:bg-emerald-450 active:scale-[0.98] py-3.5 px-4 rounded-xl font-bold text-xs min-h-[48px] shadow-md shadow-emerald-600/10 dark:shadow-none transition-all duration-150"
@@ -455,17 +516,23 @@ export default function VolunteersPage() {
                       <TrendingUp className="w-4 h-4" />
                       <span>Promote to {pipeline[pipeline.indexOf(status) + 1]}</span>
                     </button>
-                  </div>
-                )}
-
-                {isCompleted && (
-                  <div className="mt-1 pt-1">
+                  ) : (
                     <div className="w-full flex items-center justify-center gap-2 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100/50 dark:border-emerald-900/20 text-emerald-700 dark:text-emerald-450 py-3.5 px-4 rounded-xl font-bold text-xs min-h-[48px]">
                       <UserCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-450 stroke-[2.2]" />
                       <span>Fully Active Volunteer</span>
                     </div>
-                  </div>
-                )}
+                  )}
+
+                  {status !== "Application" && (
+                    <button
+                      onClick={() => handleDemoteStatus(vol.id, status)}
+                      className="w-full flex items-center justify-center gap-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-850 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 active:scale-[0.98] py-3 px-4 rounded-xl font-bold text-xs min-h-[40px] border border-zinc-200 dark:border-zinc-800 transition-all duration-150"
+                    >
+                      <TrendingDown className="w-4 h-4" />
+                      <span>Move Back to {pipeline[pipeline.indexOf(status) - 1]}</span>
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })

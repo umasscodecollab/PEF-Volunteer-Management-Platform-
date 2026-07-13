@@ -19,9 +19,12 @@
 * **Sessions:** `public.sessions` (id, center_id, topic, start_time, end_time, capacity)
 * **Attendance:** `public.attendance` (id, session_id, user_id, status, check_in_time)
 * **[PHASE 2] Profiles:** `public.volunteer_profiles` (user_id, status, id_document_url, nda_document_url, consent_form_url, background_check_cleared)
-* **[PHASE 2] Rosters:** `public.session_rosters` (id, session_id, user_id, status [Enum: Pending, Approved, Denied])
+* **[PHASE 2] Rosters:** `public.session_enrollments` (id, session_id, user_id, status [Enum: Pending, Approved, Denied])
 * **[PHASE 2] Storage:** `onboarding_documents` (Private bucket. Users can only access their own UUID-named folders).
 * **[PHASE 2] Leave:** `public.leave_requests` (id, user_id, center_id, start_date, end_date, reason, status [Enum: Pending, Approved, Denied])
+* **[PHASE 3] Comms:** `public.announcements` (id, center_id, author_id, title, content, target_role, created_at)
+* **[PHASE 3] Materials:** `public.resources` (id, center_id, uploader_id, title, description, file_url, subject, grade_level, created_at)
+* **[PHASE 3] Storage:** `center_resources` (Public bucket for curriculum. Leads can upload/delete; Volunteers can read).
 
 
 ## 4. AI Agent Directives (CRITICAL)

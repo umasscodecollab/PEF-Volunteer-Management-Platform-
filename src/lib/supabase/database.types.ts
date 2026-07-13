@@ -202,7 +202,7 @@ export type Database = {
           },
         ]
       }
-      session_rosters: {
+      session_enrollments: {
         Row: {
           id: string
           session_id: string
@@ -223,14 +223,14 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "session_rosters_session_id_fkey"
+            foreignKeyName: "session_enrollments_session_id_fkey"
             columns: ["session_id"]
             isOneToOne: false
             referencedRelation: "sessions"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "session_rosters_user_id_fkey"
+            foreignKeyName: "session_enrollments_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"

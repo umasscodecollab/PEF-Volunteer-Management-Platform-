@@ -59,26 +59,7 @@ export default function CenterLeadDashboard() {
         } else if (existingProfile) {
           profileData = existingProfile;
         } else {
-          // Provision default user profile in public.users if missing
-          const { data: centers } = await supabase.from("centers").select("id").limit(1);
-          const defaultCenterId = centers && centers.length > 0 ? centers[0].id : null;
-
-          const { data: newProfile, error: createError } = await supabase
-            .from("users")
-            .insert({
-              id: user.id,
-              email: user.email || "",
-              role: "Volunteer",
-              assigned_center_id: defaultCenterId
-            })
-            .select("*, centers(name)")
-            .maybeSingle();
-
-          if (!createError && newProfile) {
-            profileData = newProfile;
-          } else {
-            console.error("Failed to provision default user profile:", createError?.message);
-          }
+          console.error("User record missing from public.users table.");
         }
 
         if (profileData) {
@@ -92,6 +73,23 @@ export default function CenterLeadDashboard() {
 
           if (!volError && volData) {
             volunteerProfile = volData;
+          } else if (!volError && !volData && profileData.role === "Volunteer") {
+            // Provision default volunteer profile in public.volunteer_profiles if missing
+            const { data: newVolProfile, error: createVolError } = await supabase
+              .from("volunteer_profiles")
+              .insert({
+                user_id: user.id,
+                status: "Application",
+                background_check_cleared: false,
+              })
+              .select("status, background_check_cleared")
+              .maybeSingle();
+
+            if (!createVolError && newVolProfile) {
+              volunteerProfile = newVolProfile;
+            } else {
+              console.error("Failed to provision default volunteer profile:", createVolError?.message);
+            }
           }
 
           const combinedProfile = {
@@ -106,7 +104,7 @@ export default function CenterLeadDashboard() {
           if (profileData.role === "Center Lead" || profileData.role === "Admin") {
             if (profileData.assigned_center_id) {
               const { count, error: countError } = await supabase
-                .from("session_rosters")
+                .from("session_enrollments")
                 .select("id, sessions!inner(center_id)", { count: "exact", head: true })
                 .eq("status", "Pending")
                 .eq("sessions.center_id", profileData.assigned_center_id);
@@ -392,7 +390,7 @@ export default function CenterLeadDashboard() {
 
             <button
               onClick={() => router.push("/volunteers")}
-              className="w-full flex items-center justify-center gap-2 bg-emerald-650 hover:bg-emerald-600 text-white active:scale-[0.98] py-3.5 rounded-xl font-bold text-xs min-h-[48px] transition-all shadow-md shadow-emerald-650/10"
+              className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white active:scale-[0.98] py-3.5 rounded-xl font-bold text-xs min-h-[48px] transition-all shadow-md shadow-emerald-600/10"
             >
               <span>Manage Volunteers Roster</span>
               <ArrowRight className="w-4 h-4" />

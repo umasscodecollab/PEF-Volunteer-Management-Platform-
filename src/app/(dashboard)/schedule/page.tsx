@@ -37,7 +37,7 @@ interface OpportunitySession {
   end_time: string;
   capacity: number;
   center_id: string;
-  session_rosters: OpportunityRoster[];
+  session_enrollments: OpportunityRoster[];
 }
 
 export default function SchedulePage() {
@@ -93,7 +93,7 @@ export default function SchedulePage() {
         .from("sessions")
         .select(`
           *,
-          session_rosters (
+          session_enrollments (
             user_id,
             status
           )
@@ -174,7 +174,7 @@ export default function SchedulePage() {
     setFetchError("");
     try {
       const { error } = await supabase
-        .from("session_rosters")
+        .from("session_enrollments")
         .insert({
           session_id: sessionId,
           user_id: user.id,
@@ -336,7 +336,8 @@ export default function SchedulePage() {
     return (
       <div
         key={session.id}
-        className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-2xl p-4 shadow-sm flex flex-col gap-3.5 hover:shadow-md transition-shadow active:bg-zinc-50 dark:active:bg-zinc-850/50 animate-fade-in"
+        onClick={() => router.push(`/schedule/${session.id}`)}
+        className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-2xl p-4 shadow-sm flex flex-col gap-3.5 hover:shadow-md transition-shadow active:bg-zinc-50 dark:active:bg-zinc-850/50 animate-fade-in cursor-pointer"
       >
         <div className="flex items-center justify-between">
           <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider ${badgeClass}`}>
@@ -442,7 +443,7 @@ export default function SchedulePage() {
           ) : (
             <div className="flex flex-col gap-4">
               {opportunities.map((session) => {
-                const rosters = session.session_rosters || [];
+                const rosters = session.session_enrollments || [];
                 const userRoster = rosters.find((r: OpportunityRoster) => r.user_id === user?.id);
                 const requestStatus = userRoster?.status || null;
                 
