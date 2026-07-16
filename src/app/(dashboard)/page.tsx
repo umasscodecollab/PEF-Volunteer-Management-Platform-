@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
-import { Users, Clock, Flame, AlertCircle, ArrowRight, ClipboardList, ShieldAlert, CheckCircle } from "lucide-react";
+import { Users, Clock, Flame, AlertCircle, ArrowRight, ClipboardList, ShieldAlert, CheckCircle, Megaphone, Camera } from "lucide-react";
 import { User } from "@supabase/supabase-js";
 import ActiveCheckInBanner from "@/components/active-check-in-banner";
 
@@ -33,6 +33,7 @@ export default function CenterLeadDashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState<number>(0);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchUserAndProfile = async () => {
@@ -113,6 +114,22 @@ export default function CenterLeadDashboard() {
                 setPendingApprovalsCount(count);
               }
             }
+          }
+
+          // Fetch Recent Announcements
+          let annQuery = supabase
+            .from("announcements")
+            .select("id, title, target_role, created_at")
+            .order("created_at", { ascending: false })
+            .limit(2);
+            
+          if (profileData.role === "Volunteer") {
+            annQuery = annQuery.in("target_role", ["All", "Volunteer"]);
+          }
+          
+          const { data: annData } = await annQuery;
+          if (annData) {
+            setAnnouncements(annData);
           }
         }
       } catch (err) {
@@ -212,6 +229,43 @@ export default function CenterLeadDashboard() {
         </p>
       </header>
 
+      {/* Recent Announcements Widget */}
+      {announcements.length > 0 && (
+        <section className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
+              <Megaphone className="w-4 h-4" />
+              Announcements
+            </h2>
+            <button
+              onClick={() => router.push("/workspace")}
+              className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider hover:underline flex items-center gap-1 min-h-[32px] px-2 active:scale-95 transition-all"
+            >
+              View All
+              <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
+          <div className="flex flex-col gap-2">
+            {announcements.map((ann) => (
+              <div
+                key={ann.id}
+                onClick={() => router.push("/workspace")}
+                className="group flex flex-col gap-1 p-3 rounded-xl bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950/50 dark:hover:bg-zinc-800/50 cursor-pointer active:scale-[0.98] transition-all"
+              >
+                <div className="flex justify-between items-start gap-2">
+                  <span className="text-sm font-bold text-zinc-800 dark:text-zinc-200 leading-tight">
+                    {ann.title}
+                  </span>
+                </div>
+                <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-500">
+                  {new Date(ann.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {roleName === "Volunteer" ? (
         /* VOLUNTEER SPECIFIC VIEW */
         <div className="flex flex-col gap-6">
@@ -238,7 +292,7 @@ export default function CenterLeadDashboard() {
                 onClick={() => router.push("/onboarding")}
                 className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-650 text-white active:scale-[0.98] py-3.5 rounded-xl font-bold text-xs min-h-[48px] transition-all shadow-md shadow-amber-500/10"
               >
-                <span>Upload NDA, Consent & ID</span>
+                <span>Continue Onboarding</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -267,16 +321,16 @@ export default function CenterLeadDashboard() {
                   alert("Onboarding required: Please complete your onboarding documents before joining sessions.");
                   router.push("/onboarding");
                 } else {
-                  router.push("/check-in");
+                  router.push("/scanner");
                 }
               }}
               className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-2xl p-4 shadow-sm flex flex-col justify-between min-h-[110px] text-left active:scale-[0.97] transition-all cursor-pointer"
             >
               <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-455 rounded-xl self-start">
-                <Users className="w-5 h-5" />
+                <Camera className="w-5 h-5" />
               </div>
               <div className="mt-2">
-                <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block">Session Check-In</span>
+                <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block">Scan to Check-In</span>
                 <span className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5 block font-medium">Record attendance</span>
               </div>
             </button>
@@ -325,7 +379,7 @@ export default function CenterLeadDashboard() {
               </div>
 
               <button
-                onClick={() => router.push("/approvals")}
+                onClick={() => router.push("/team")}
                 className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-650 text-white active:scale-[0.98] py-3.5 rounded-xl font-bold text-xs min-h-[48px] transition-all shadow-md shadow-amber-500/10 cursor-pointer"
               >
                 <span>Review Pending Shifts</span>
@@ -389,7 +443,7 @@ export default function CenterLeadDashboard() {
             </div>
 
             <button
-              onClick={() => router.push("/volunteers")}
+              onClick={() => router.push("/team")}
               className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white active:scale-[0.98] py-3.5 rounded-xl font-bold text-xs min-h-[48px] transition-all shadow-md shadow-emerald-600/10"
             >
               <span>Manage Volunteers Roster</span>

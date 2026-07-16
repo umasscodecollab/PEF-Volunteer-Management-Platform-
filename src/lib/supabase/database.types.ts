@@ -106,6 +106,7 @@ export type Database = {
           id: string
           start_time: string
           topic: string
+          kiosk_token: string | null
         }
         Insert: {
           capacity: number
@@ -115,6 +116,7 @@ export type Database = {
           id?: string
           start_time: string
           topic: string
+          kiosk_token?: string | null
         }
         Update: {
           capacity?: number
@@ -124,6 +126,7 @@ export type Database = {
           id?: string
           start_time?: string
           topic?: string
+          kiosk_token?: string | null
         }
         Relationships: [
           {
@@ -131,6 +134,57 @@ export type Database = {
             columns: ["center_id"]
             isOneToOne: false
             referencedRelation: "centers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resources: {
+        Row: {
+          id: string
+          center_id: string | null
+          uploader_id: string
+          title: string
+          description: string
+          file_url: string
+          subject: string
+          grade_level: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          center_id?: string | null
+          uploader_id: string
+          title: string
+          description: string
+          file_url: string
+          subject: string
+          grade_level: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          center_id?: string | null
+          uploader_id?: string
+          title?: string
+          description?: string
+          file_url?: string
+          subject?: string
+          grade_level?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resources_center_id_fkey"
+            columns: ["center_id"]
+            isOneToOne: false
+            referencedRelation: "centers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resources_uploader_id_fkey"
+            columns: ["uploader_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -279,6 +333,51 @@ export type Database = {
           },
           {
             foreignKeyName: "leave_requests_center_id_fkey"
+            columns: ["center_id"]
+            isOneToOne: false
+            referencedRelation: "centers"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      announcements: {
+        Row: {
+          id: string
+          title: string
+          content: string
+          target_role: string
+          author_id: string
+          center_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          content: string
+          target_role: string
+          author_id: string
+          center_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          content?: string
+          target_role?: string
+          author_id?: string
+          center_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcements_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "announcements_center_id_fkey"
             columns: ["center_id"]
             isOneToOne: false
             referencedRelation: "centers"

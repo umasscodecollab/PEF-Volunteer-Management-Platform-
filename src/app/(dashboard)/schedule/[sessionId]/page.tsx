@@ -15,7 +15,8 @@ import {
   ChevronLeft,
   Check,
   XCircle,
-  BadgeCheck
+  BadgeCheck,
+  QrCode
 } from "lucide-react";
 
 type Session = Database["public"]["Tables"]["sessions"]["Row"];
@@ -172,20 +173,29 @@ export default function SessionDetailsPage({ params }: { params: Promise<{ sessi
           <ChevronLeft className="w-5 h-5" />
           Back to Schedule
         </button>
-        <div className="flex flex-col">
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 leading-snug">
-            {selectedSessionData.session.topic}
-          </h1>
-          <div className="flex items-center gap-4 mt-2">
-            <span className="text-sm text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 font-medium">
-              <Calendar className="w-4 h-4 text-zinc-400" />
-              {formatDate(selectedSessionData.session.start_time)}
-            </span>
-            <span className="text-sm text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 font-medium">
-              <Clock className="w-4 h-4 text-zinc-400" />
-              {formatTime(selectedSessionData.session.start_time)} - {formatTime(selectedSessionData.session.end_time)}
-            </span>
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+          <div className="flex flex-col">
+            <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 leading-snug">
+              {selectedSessionData.session.topic}
+            </h1>
+            <div className="flex items-center gap-4 mt-2">
+              <span className="text-sm text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 font-medium">
+                <Calendar className="w-4 h-4 text-zinc-400" />
+                {formatDate(selectedSessionData.session.start_time)}
+              </span>
+              <span className="text-sm text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 font-medium">
+                <Clock className="w-4 h-4 text-zinc-400" />
+                {formatTime(selectedSessionData.session.start_time)} - {formatTime(selectedSessionData.session.end_time)}
+              </span>
+            </div>
           </div>
+          <button
+            onClick={() => router.push(`/kiosk/${sessionId}`)}
+            className="flex items-center justify-center gap-2 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 px-5 py-2.5 rounded-xl font-bold text-sm min-h-[48px] transition-all active:scale-95 shadow-md shadow-zinc-900/10"
+          >
+            <QrCode className="w-4 h-4" />
+            Launch Kiosk
+          </button>
         </div>
       </header>
 

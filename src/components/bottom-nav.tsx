@@ -3,16 +3,16 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Calendar, UserCheck, User, Users, ClipboardList, Inbox, CalendarOff } from "lucide-react";
+import { LayoutDashboard, Calendar, User, Users, CalendarOff, Briefcase } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
 export default function BottomNav() {
   const pathname = usePathname();
   const [role, setRole] = useState<string>("Volunteer");
-  const [onboardingStatus, setOnboardingStatus] = useState<string>("Application");
-
+  // We no longer need onboardingStatus for the bottom nav since Onboarding is moved to the dashboard page
+  
   useEffect(() => {
-    const fetchRoleAndStatus = async () => {
+    const fetchRole = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
@@ -25,24 +25,13 @@ export default function BottomNav() {
 
         if (profileData) {
           setRole(profileData.role);
-          if (profileData.role === "Volunteer") {
-            const { data: profile } = await supabase
-              .from("volunteer_profiles")
-              .select("status")
-              .eq("user_id", user.id)
-              .maybeSingle();
-
-            if (profile?.status) {
-              setOnboardingStatus(profile.status);
-            }
-          }
         }
       } catch (err) {
         console.error("Error fetching nav details:", err);
       }
     };
 
-    fetchRoleAndStatus();
+    fetchRole();
   }, []);
 
   const navItems = [
@@ -51,54 +40,37 @@ export default function BottomNav() {
       href: "/",
       icon: LayoutDashboard,
     },
+    {
+      label: "Schedule",
+      href: "/schedule",
+      icon: Calendar,
+    },
   ];
 
   if (role === "Center Lead" || role === "Admin") {
     navItems.push(
       {
-        label: "Schedule",
-        href: "/schedule",
-        icon: Calendar,
-      },
-      {
-        label: "Volunteers",
-        href: "/volunteers",
+        label: "Team",
+        href: "/team",
         icon: Users,
-      },
-      {
-        label: "Approvals",
-        href: "/approvals",
-        icon: Inbox,
       }
     );
   } else {
     // Volunteer
-    if (onboardingStatus === "Active") {
-      navItems.push(
-        {
-          label: "Schedule",
-          href: "/schedule",
-          icon: Calendar,
-        },
-        {
-          label: "Check-in",
-          href: "/check-in",
-          icon: UserCheck,
-        },
-        {
-          label: "Leave",
-          href: "/leave",
-          icon: CalendarOff,
-        }
-      );
-    } else {
-      navItems.push({
-        label: "Onboarding",
-        href: "/onboarding",
-        icon: ClipboardList,
-      });
-    }
+    navItems.push(
+      {
+        label: "Leave",
+        href: "/leave",
+        icon: CalendarOff,
+      }
+    );
   }
+
+  navItems.push({
+    label: "Workspace",
+    href: "/workspace",
+    icon: Briefcase,
+  });
 
   navItems.push({
     label: "Profile",

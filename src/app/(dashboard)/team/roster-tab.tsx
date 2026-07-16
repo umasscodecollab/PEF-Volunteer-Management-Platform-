@@ -43,7 +43,7 @@ interface LeadProfile {
   } | null;
 }
 
-export default function VolunteersPage() {
+export default function RosterTab() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -331,23 +331,7 @@ export default function VolunteersPage() {
   });
 
   return (
-    <div className="flex flex-col gap-6 px-5 py-6 select-none animate-fade-in pb-20">
-      {/* Title Header */}
-      <header className="flex flex-col">
-        <div className="flex items-center gap-2">
-          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/30 uppercase tracking-wider">
-            {leadProfile?.role}
-          </span>
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-        </div>
-        <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 mt-2">
-          Volunteer Roster
-        </h1>
-        <p className="text-sm text-zinc-550 dark:text-zinc-400 mt-1 flex items-center gap-1">
-          <Building className="w-4 h-4 shrink-0" />
-          {centerName}
-        </p>
-      </header>
+    <div className="flex flex-col gap-6 select-none animate-fade-in">
 
       {/* Roster Filters */}
       <section className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-900 p-1.5 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50">

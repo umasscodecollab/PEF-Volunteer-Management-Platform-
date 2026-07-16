@@ -61,7 +61,7 @@ interface LeadProfile {
   } | null;
 }
 
-export default function ApprovalsPage() {
+export default function ApprovalsTab() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -353,23 +353,7 @@ export default function ApprovalsPage() {
   const centerName = leadProfile?.centers?.name || "Center Operations";
 
   return (
-    <div className="flex flex-col gap-6 px-5 py-6 select-none animate-fade-in pb-20">
-      {/* Title Header */}
-      <header className="flex flex-col">
-        <div className="flex items-center gap-2">
-          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/30 uppercase tracking-wider">
-            Approvals
-          </span>
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-        </div>
-        <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 mt-2">
-          Approvals Inbox
-        </h1>
-        <p className="text-sm text-zinc-550 dark:text-zinc-400 mt-1 flex items-center gap-1 font-medium">
-          <Building className="w-4 h-4 shrink-0" />
-          {centerName}
-        </p>
-      </header>
+    <div className="flex flex-col gap-6 select-none animate-fade-in">
 
       {/* Tabs Selector */}
       <div className="flex border-b border-zinc-200 dark:border-zinc-800 mt-2">
