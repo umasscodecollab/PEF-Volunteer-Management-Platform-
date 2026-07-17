@@ -219,7 +219,7 @@ export default function LeaveRequestsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 px-5 py-6 select-none animate-fade-in pb-20">
+    <div className="max-w-7xl mx-auto px-5 w-full flex flex-col gap-6 py-6 select-none animate-fade-in pb-20">
       {/* Title Header */}
       <header className="flex flex-col">
         <div className="flex items-center gap-2">

@@ -31,6 +31,15 @@ export default function CenterLeadDashboard() {
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState<number>(0);
   const [announcements, setAnnouncements] = useState<any[]>([]);
 
+  const [stats, setStats] = useState({
+    fillRate: 0,
+    filledSlots: 0,
+    totalSlots: 0,
+    activeSessions: 0,
+    totalSessions: 0,
+    presentVolunteers: 0,
+  });
+
   useEffect(() => {
     const fetchUserAndProfile = async () => {
       try {
@@ -75,6 +84,53 @@ export default function CenterLeadDashboard() {
               if (!countError && count !== null) {
                 setPendingApprovalsCount(count);
               }
+
+              // Fetch KPI Stats for today
+              const startOfDay = new Date();
+              startOfDay.setHours(0, 0, 0, 0);
+              const endOfDay = new Date();
+              endOfDay.setHours(23, 59, 59, 999);
+
+              const { data: todaySessions, error: sessionsError } = await supabase
+                .from("sessions")
+                .select("id, start_time, end_time, capacity, session_enrollments(id, status), attendance(id, status)")
+                .eq("center_id", profileData.assigned_center_id)
+                .gte("start_time", startOfDay.toISOString())
+                .lte("start_time", endOfDay.toISOString());
+
+              if (!sessionsError && todaySessions) {
+                const totalSessions = todaySessions.length;
+                let activeSessions = 0;
+                let totalSlots = 0;
+                let filledSlots = 0;
+                let presentVolunteers = 0;
+
+                const now = new Date();
+
+                todaySessions.forEach(session => {
+                  if (new Date(session.end_time) < now) {
+                    activeSessions += 1;
+                  }
+                  totalSlots += session.capacity || 0;
+                  
+                  const approvedEnrollments = session.session_enrollments?.filter((e: any) => e.status === "Approved")?.length || 0;
+                  filledSlots += approvedEnrollments;
+
+                  const present = session.attendance?.filter((a: any) => a.status === "Present")?.length || 0;
+                  presentVolunteers += present;
+                });
+
+                const fillRate = totalSlots > 0 ? Math.round((filledSlots / totalSlots) * 100) : 0;
+
+                setStats({
+                  fillRate,
+                  filledSlots,
+                  totalSlots,
+                  activeSessions,
+                  totalSessions,
+                  presentVolunteers
+                });
+              }
             }
           }
 
@@ -103,16 +159,6 @@ export default function CenterLeadDashboard() {
 
     fetchUserAndProfile();
   }, [router]);
-
-  // Static placeholder data for demonstration
-  const stats = {
-    fillRate: 82,
-    filledSlots: 18,
-    totalSlots: 22,
-    activeSessions: 3,
-    totalSessions: 4,
-    presentVolunteers: 12,
-  };
 
   const getDisplayName = () => {
     if (user?.user_metadata?.full_name) return user.user_metadata.full_name;

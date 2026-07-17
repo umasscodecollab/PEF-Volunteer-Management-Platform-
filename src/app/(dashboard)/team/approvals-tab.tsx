@@ -223,62 +223,17 @@ export default function ApprovalsTab() {
     setUpdatingId(req.id);
     setSuccessMessage(null);
     try {
-      const centerId = req.users?.assigned_center_id;
-      if (nextStatus === "Approved") {
-        // SMART BACKFILL LOGIC
-        // 1. Update status to 'Approved'
-        const { error: updateError } = await supabase
-          .from("leaves")
-          .update({ status: "Approved" })
-          .eq("id", req.id);
+      const { error: updateError } = await supabase
+        .from("leaves")
+        .update({ 
+          status: nextStatus,
+          approver_id: leadProfile?.id 
+        })
+        .eq("id", req.id);
 
-        if (updateError) throw updateError;
+      if (updateError) throw updateError;
 
-        // 2. Query matching sessions falling between leave start_date and end_date
-        // for this volunteer's center.
-        const { data: overlappingRosters, error: rosterError } = await supabase
-          .from("session_enrollments")
-          .select(`
-            id,
-            session_id,
-            sessions!inner (
-              id,
-              center_id,
-              start_time
-            )
-          `)
-          .eq("user_id", req.volunteer_id || "")
-          .eq("status", "Approved")
-          .eq("sessions.center_id", centerId || "")
-          .gte("sessions.start_time", req.start_date)
-          .lte("sessions.start_time", req.end_date + "T23:59:59.999Z");
-
-        if (rosterError) throw rosterError;
-
-        let backfillMsg = "";
-        // 3. Delete approved rosters for those overlapping sessions to free up capacity
-        if (overlappingRosters && overlappingRosters.length > 0) {
-          const rosterIds = overlappingRosters.map((r) => r.id);
-          const { error: deleteError } = await supabase
-            .from("session_enrollments")
-            .delete()
-            .in("id", rosterIds);
-
-          if (deleteError) throw deleteError;
-          backfillMsg = ` and ${overlappingRosters.length} overlapping session roster assignment(s) were cancelled to free up slot capacity`;
-        }
-
-        setSuccessMessage(`Leave request approved successfully${backfillMsg}!`);
-      } else {
-        // Denied status update
-        const { error: updateError } = await supabase
-          .from("leaves")
-          .update({ status: "Denied" })
-          .eq("id", req.id);
-
-        if (updateError) throw updateError;
-        setSuccessMessage("Leave request successfully denied.");
-      }
+      setSuccessMessage(`Leave request successfully ${nextStatus.toLowerCase()}.`);
 
       // Remove from pending UI list
       setLeaveRequests((prev) => prev.filter((r) => r.id !== req.id));

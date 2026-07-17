@@ -20,6 +20,7 @@ import {
   History
 } from "lucide-react";
 import ActiveCheckInBanner from "@/components/active-check-in-banner";
+import BatchBuilder from "./batch-builder";
 import { User } from "@supabase/supabase-js";
 
 type Session = Database["public"]["Tables"]["sessions"]["Row"];
@@ -61,6 +62,7 @@ export default function SchedulePage() {
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isBatchBuilderOpen, setIsBatchBuilderOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
   const [formSuccess, setFormSuccess] = useState("");
@@ -692,13 +694,22 @@ export default function SchedulePage() {
                   {center ? `${center.name}` : "Loading location..."}
                 </p>
               </div>
-              <button
-                onClick={() => setIsModalOpen(true)}
-                className="flex items-center gap-2 bg-emerald-600 active:bg-emerald-700 dark:bg-emerald-500 dark:active:bg-emerald-600 text-white font-bold text-sm px-4 py-3 rounded-2xl shadow-md transition-all active:scale-[0.97] min-h-[48px]"
-              >
-                <Plus className="w-4 h-4 stroke-[2.5]" />
-                Create Session
-              </button>
+              <div className="flex flex-col sm:flex-row items-center gap-2">
+                <button
+                  onClick={() => setIsBatchBuilderOpen(true)}
+                  className="flex items-center gap-2 bg-indigo-600 active:bg-indigo-700 dark:bg-indigo-500 dark:active:bg-indigo-600 text-white font-bold text-sm px-4 py-3 rounded-2xl shadow-md transition-all active:scale-[0.97] min-h-[48px] w-full sm:w-auto justify-center"
+                >
+                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  Create Batch
+                </button>
+                <button
+                  onClick={() => setIsModalOpen(true)}
+                  className="flex items-center gap-2 bg-emerald-600 active:bg-emerald-700 dark:bg-emerald-500 dark:active:bg-emerald-600 text-white font-bold text-sm px-4 py-3 rounded-2xl shadow-md transition-all active:scale-[0.97] min-h-[48px] w-full sm:w-auto justify-center"
+                >
+                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  Create Session
+                </button>
+              </div>
             </header>
 
             {fetchError && (
@@ -804,13 +815,22 @@ export default function SchedulePage() {
 
           <div className="flex items-center gap-3">
             {role !== "Volunteer" && (
-              <button
-                onClick={() => setIsModalOpen(true)}
-                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 dark:bg-emerald-500 dark:hover:bg-emerald-455 text-white font-bold text-sm px-5 py-3 rounded-2xl shadow-lg shadow-emerald-500/10 transition-all hover:translate-y-[-1px] active:translate-y-[0] min-h-[48px] cursor-pointer"
-              >
-                <Plus className="w-4.5 h-4.5 stroke-[2.5]" />
-                Create New Session
-              </button>
+              <>
+                <button
+                  onClick={() => setIsBatchBuilderOpen(true)}
+                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-455 text-white font-bold text-sm px-5 py-3 rounded-2xl shadow-lg shadow-indigo-500/10 transition-all hover:translate-y-[-1px] active:translate-y-[0] min-h-[48px] cursor-pointer"
+                >
+                  <Plus className="w-4.5 h-4.5 stroke-[2.5]" />
+                  Create Recurring Batch
+                </button>
+                <button
+                  onClick={() => setIsModalOpen(true)}
+                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 dark:bg-emerald-500 dark:hover:bg-emerald-455 text-white font-bold text-sm px-5 py-3 rounded-2xl shadow-lg shadow-emerald-500/10 transition-all hover:translate-y-[-1px] active:translate-y-[0] min-h-[48px] cursor-pointer"
+                >
+                  <Plus className="w-4.5 h-4.5 stroke-[2.5]" />
+                  Create New Session
+                </button>
+              </>
             )}
           </div>
         </header>
@@ -1438,6 +1458,16 @@ export default function SchedulePage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* RECURRING BATCH BUILDER */}
+      {assignedCenterId && (
+        <BatchBuilder
+          centerId={assignedCenterId}
+          isOpen={isBatchBuilderOpen}
+          onClose={() => setIsBatchBuilderOpen(false)}
+          onSuccess={() => fetchSessions()}
+        />
       )}
 
     </div>
