@@ -1,0 +1,3 @@
+ALTER TABLE public.attendance ADD COLUMN IF NOT EXISTS checkout_time TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.attendance ADD COLUMN IF NOT EXISTS geo_location JSONB;
+ALTER TABLE public.sessions ADD COLUMN IF NOT EXISTS notes TEXT;

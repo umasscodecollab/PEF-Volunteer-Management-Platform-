@@ -18,13 +18,9 @@ interface Profile {
   } | {
     name: string;
   }[] | null;
-  volunteer_profiles?: {
-    status: string;
-    background_check_cleared: boolean;
-  } | {
-    status: string;
-    background_check_cleared: boolean;
-  }[] | null;
+  status?: string;
+  id_verification_status?: string;
+  consent_accepted?: boolean;
 }
 
 export default function CenterLeadDashboard() {
@@ -64,42 +60,8 @@ export default function CenterLeadDashboard() {
         }
 
         if (profileData) {
-          // Fetch volunteer profiles separately
-          let volunteerProfile = null;
-          const { data: volData, error: volError } = await supabase
-            .from("volunteer_profiles")
-            .select("status, background_check_cleared")
-            .eq("user_id", user.id)
-            .maybeSingle();
-
-          if (!volError && volData) {
-            volunteerProfile = volData;
-          } else if (!volError && !volData && profileData.role === "Volunteer") {
-            // Provision default volunteer profile in public.volunteer_profiles if missing
-            const { data: newVolProfile, error: createVolError } = await supabase
-              .from("volunteer_profiles")
-              .insert({
-                user_id: user.id,
-                status: "Application",
-                background_check_cleared: false,
-              })
-              .select("status, background_check_cleared")
-              .maybeSingle();
-
-            if (!createVolError && newVolProfile) {
-              volunteerProfile = newVolProfile;
-            } else {
-              console.error("Failed to provision default volunteer profile:", createVolError?.message);
-            }
-          }
-
-          const combinedProfile = {
-            ...profileData,
-            volunteer_profiles: volunteerProfile,
-          };
-
-          console.log("Fetched User Profile (page):", combinedProfile);
-          setProfile(combinedProfile as unknown as Profile);
+          console.log("Fetched User Profile (page):", profileData);
+          setProfile(profileData as unknown as Profile);
 
           // Fetch pending approvals count for Center Lead / Admin
           if (profileData.role === "Center Lead" || profileData.role === "Admin") {
@@ -171,9 +133,7 @@ export default function CenterLeadDashboard() {
     : (centersData?.name || "No Center Assigned");
   const roleName = profile?.role || "Volunteer";
 
-  const rawVolProfile = profile?.volunteer_profiles;
-  const volProfile = Array.isArray(rawVolProfile) ? rawVolProfile[0] : rawVolProfile;
-  const onboardingStatus = volProfile?.status || "Application";
+  const onboardingStatus = profile?.status || "Applied";
 
   if (loading) {
     return (
@@ -211,7 +171,7 @@ export default function CenterLeadDashboard() {
   return (
     <div className="flex flex-col gap-6 px-5 py-6 select-none animate-fade-in pb-20">
       {/* Active Check-In Notification Banner */}
-      <ActiveCheckInBanner />
+      {roleName === "Volunteer" && <ActiveCheckInBanner />}
 
       {/* Warm Greeting Hero */}
       <header className="flex flex-col">

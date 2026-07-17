@@ -406,51 +406,53 @@ export default function ResourcesTab() {
             </p>
           </div>
         ) : (
-          filteredResources.map((resource) => (
-            <div 
-              key={resource.id} 
-              className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-2xl p-5 shadow-sm flex flex-col gap-4 relative overflow-hidden group"
-            >
-              <div>
-                <h4 className="font-bold text-zinc-900 dark:text-white leading-tight text-base mb-1.5 pr-8">
-                  {resource.title}
-                </h4>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/30 tracking-wide">
-                    {resource.subject}
-                  </span>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400 border border-amber-100 dark:border-amber-800/30 tracking-wide">
-                    {resource.grade_level}
-                  </span>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredResources.map((resource) => (
+              <div 
+                key={resource.id} 
+                className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-2xl p-5 shadow-sm flex flex-col gap-4 relative overflow-hidden group justify-between"
+              >
+                <div>
+                  <h4 className="font-bold text-zinc-900 dark:text-white leading-tight text-base mb-1.5 pr-8">
+                    {resource.title}
+                  </h4>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/30 tracking-wide">
+                      {resource.subject}
+                    </span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400 border border-amber-100 dark:border-amber-800/30 tracking-wide">
+                      {resource.grade_level}
+                    </span>
+                  </div>
+                  <p className="text-sm text-zinc-650 dark:text-zinc-300 leading-relaxed">
+                    {resource.description}
+                  </p>
                 </div>
-                <p className="text-sm text-zinc-600 dark:text-zinc-300 leading-relaxed">
-                  {resource.description}
-                </p>
-              </div>
-              
-              <div className="flex items-center justify-between gap-3 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                <a
-                  href={resource.file_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 font-semibold text-sm py-2.5 rounded-xl transition-colors min-h-[44px]"
-                >
-                  <Download className="w-4 h-4" />
-                  Download
-                </a>
                 
-                {canManage && (
-                  <button
-                    onClick={() => handleDelete(resource)}
-                    className="flex-shrink-0 flex items-center justify-center bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 p-2.5 rounded-xl transition-colors min-h-[44px] min-w-[44px]"
-                    aria-label="Delete resource"
+                <div className="flex items-center justify-between gap-3 pt-4 border-t border-zinc-100 dark:border-zinc-800 mt-auto">
+                  <a
+                    href={resource.file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 font-semibold text-sm py-2.5 rounded-xl transition-colors min-h-[44px]"
                   >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
+                    <Download className="w-4 h-4" />
+                    Download
+                  </a>
+                  
+                  {canManage && (
+                    <button
+                      onClick={() => handleDelete(resource)}
+                      className="flex-shrink-0 flex items-center justify-center bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 p-2.5 rounded-xl transition-colors min-h-[44px] min-w-[44px]"
+                      aria-label="Delete resource"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))
+            ))}
+          </div>
         )}
       </div>
     </div>

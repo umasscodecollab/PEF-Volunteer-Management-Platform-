@@ -1,4 +1,5 @@
 import BottomNav from "@/components/bottom-nav";
+import Sidebar from "@/components/sidebar";
 
 export default function DashboardLayout({
   children,
@@ -6,14 +7,19 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen w-full max-w-md mx-auto bg-zinc-50 dark:bg-zinc-950 flex flex-col relative shadow-2xl md:border-x md:border-zinc-200 dark:md:border-zinc-800 transition-colors duration-200">
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col w-full pb-24 overflow-y-auto">
-        {children}
-      </main>
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 transition-colors duration-200 flex flex-col md:flex-row w-full">
+      {/* Desktop Sidebar Navigation */}
+      <Sidebar />
 
-      {/* Global Bottom Navigation Bar */}
-      <BottomNav />
+      {/* Main Content & Navigation Shell */}
+      <div className="flex-1 flex flex-col md:pl-64 min-h-screen w-full relative">
+        <main className="flex-1 flex flex-col w-full pb-24 md:pb-8 overflow-y-auto">
+          {children}
+        </main>
+
+        {/* Global Bottom Navigation Bar (Mobile only) */}
+        <BottomNav />
+      </div>
     </div>
   );
 }

@@ -11,6 +11,7 @@ interface AttendanceRecord {
   id: string;
   user_id: string;
   check_in_time: string | null;
+  checkout_time: string | null;
   users?: {
     email: string | null;
   };
@@ -49,7 +50,7 @@ export default function KioskPage({ params }: { params: Promise<{ sessionId: str
         // 2. Fetch Initial Attendance
         const { data: attendData, error: attendError } = await supabase
           .from("attendance")
-          .select("id, user_id, check_in_time, users(email)")
+          .select("id, user_id, check_in_time, checkout_time, users(email)")
           .eq("session_id", sessionId)
           .eq("status", "Present")
           .order("check_in_time", { ascending: false });
@@ -59,18 +60,19 @@ export default function KioskPage({ params }: { params: Promise<{ sessionId: str
         }
 
         // 3. Subscribe to Real-time Attendance
+        const channelName = `attendance_kiosk_${sessionId}_${Math.random().toString(36).substring(2)}`;
         channel = supabase
-          .channel(`attendance_kiosk_${sessionId}`)
+          .channel(channelName)
           .on(
             "postgres_changes",
             {
-              event: "INSERT",
+              event: "*",
               schema: "public",
               table: "attendance",
               filter: `session_id=eq.${sessionId}`,
             },
             async (payload) => {
-              if (payload.new.status === "Present") {
+              if (payload.eventType === "INSERT" && payload.new.status === "Present") {
                 // Fetch user info for the new record
                 const { data: userData } = await supabase
                   .from("users")
@@ -82,10 +84,21 @@ export default function KioskPage({ params }: { params: Promise<{ sessionId: str
                   id: payload.new.id,
                   user_id: payload.new.user_id,
                   check_in_time: payload.new.check_in_time,
+                  checkout_time: payload.new.checkout_time,
                   users: userData ? { email: userData.email } : undefined,
                 };
 
                 setAttendance((prev) => [newRecord, ...prev]);
+              } else if (payload.eventType === "UPDATE") {
+                setAttendance((prev) => prev.map((record) => {
+                  if (record.id === payload.new.id) {
+                    return {
+                      ...record,
+                      checkout_time: payload.new.checkout_time,
+                    };
+                  }
+                  return record;
+                }));
               }
             }
           )
@@ -153,19 +166,20 @@ export default function KioskPage({ params }: { params: Promise<{ sessionId: str
         </div>
       </header>
 
-      <main className="relative z-10 flex-1 grid grid-cols-1 md:grid-cols-2 gap-10 max-w-6xl mx-auto w-full items-start">
+      <main className="relative z-10 flex-1 flex flex-col gap-12 max-w-4xl mx-auto w-full items-center justify-start pb-20">
         
-        {/* Left Column: QR Code */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8 flex flex-col items-center justify-center shadow-2xl h-full min-h-[500px]">
-          <h2 className="text-3xl font-black text-center mb-4">Scan to Check In</h2>
-          <p className="text-zinc-400 text-center mb-10 max-w-sm">
+        {/* Top Section: QR Code */}
+        <div className="w-full bg-zinc-900 border border-zinc-800 rounded-3xl p-6 lg:p-10 flex flex-col items-center justify-center shadow-2xl min-h-[60vh]">
+          <h2 className="text-2xl lg:text-4xl font-black text-center mb-3 lg:mb-4">Scan to Check In</h2>
+          <p className="text-zinc-400 text-center mb-6 lg:mb-10 max-w-sm text-sm lg:text-base">
             Open the scanner in your Volunteer Dashboard and point your camera here.
           </p>
           
-          <div className="bg-white p-6 rounded-3xl shadow-xl shadow-emerald-500/10 mb-8 transition-transform hover:scale-105 duration-300">
+          <div className="bg-white p-4 lg:p-6 rounded-3xl shadow-xl shadow-emerald-500/10 mb-4 transition-transform hover:scale-105 duration-300 w-full max-w-[280px] lg:max-w-[360px] mx-auto flex items-center justify-center aspect-square">
             <QRCodeSVG 
               value={qrPayload} 
-              size={320}
+              size={256}
+              style={{ width: "100%", height: "100%" }}
               level="H"
               includeMargin={false}
               className="text-black"
@@ -173,8 +187,8 @@ export default function KioskPage({ params }: { params: Promise<{ sessionId: str
           </div>
         </div>
 
-        {/* Right Column: Live Feed */}
-        <div className="flex flex-col h-full max-h-[700px]">
+        {/* Bottom Section: Live Feed */}
+        <div className="w-full flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-bold tracking-wider uppercase text-zinc-300 flex items-center gap-2">
               <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse" />
@@ -185,7 +199,7 @@ export default function KioskPage({ params }: { params: Promise<{ sessionId: str
             </span>
           </div>
 
-          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-4 flex-1 overflow-y-auto custom-scrollbar shadow-inner">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-4 flex-1 shadow-inner min-h-[300px]">
             {attendance.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-zinc-500 gap-3">
                 <User className="w-12 h-12 stroke-[1]" />
@@ -199,21 +213,37 @@ export default function KioskPage({ params }: { params: Promise<{ sessionId: str
                     className="flex items-center justify-between p-4 bg-zinc-950 border border-zinc-800/50 rounded-2xl animate-fade-in-up"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="bg-emerald-500/20 p-2 rounded-full text-emerald-400">
+                      <div className={`p-2 rounded-full ${record.checkout_time ? "bg-zinc-800 text-zinc-400" : "bg-emerald-500/20 text-emerald-400"}`}>
                         <CheckCircle2 className="w-6 h-6 stroke-[2.5]" />
                       </div>
                       <div className="flex flex-col">
-                        <span className="font-bold text-white text-lg">
+                        <span className={`font-bold text-lg ${record.checkout_time ? "text-zinc-400" : "text-white"}`}>
                           {record.users?.email?.split('@')[0] || 'Unknown User'}
                         </span>
-                        <span className="text-xs text-zinc-500 font-medium">
-                          {record.check_in_time 
-                            ? new Date(record.check_in_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-                            : 'Just now'
-                          }
-                        </span>
+                        <div className="flex items-center gap-2 text-xs font-medium">
+                          <span className={record.checkout_time ? "text-zinc-500" : "text-emerald-500/70"}>
+                            In: {record.check_in_time 
+                              ? new Date(record.check_in_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                              : 'Just now'
+                            }
+                          </span>
+                          {record.checkout_time && (
+                            <span className="text-zinc-500">
+                              Out: {new Date(record.checkout_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
+                    {record.checkout_time ? (
+                      <span className="px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-full text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
+                        Checked Out
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 bg-emerald-950 border border-emerald-900/50 rounded-full text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
+                        Checked In
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>

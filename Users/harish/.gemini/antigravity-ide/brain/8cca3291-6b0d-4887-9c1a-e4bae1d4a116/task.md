@@ -1,0 +1,17 @@
+- [x] Update TypeScript Types (`database.types.ts`)
+  - [x] Add `batches`, `leaves`, and `audit_logs`
+  - [x] Expand `users` table with the 10 new fields
+  - [x] Update `sessions` table
+  - [x] Update `attendance` table
+  - [x] Remove `volunteer_profiles` table
+  - [x] Remove `leave_requests` table
+- [x] Create PostgreSQL Onboarding/Registration Trigger Migration
+- [x] Update Frontend Pages and Tabs to remove `volunteer_profiles` and use expanded `users`
+  - [x] `src/app/(dashboard)/page.tsx`
+  - [x] `src/app/(dashboard)/onboarding/page.tsx`
+  - [x] `src/app/(dashboard)/team/roster-tab.tsx`
+- [x] Update Frontend Pages and Tabs to use `leaves` instead of `leave_requests`
+  - [x] `src/app/(dashboard)/leave/page.tsx`
+  - [x] `src/app/(dashboard)/team/approvals-tab.tsx`
+- [x] Verify Types and Compilation Cleanliness
+  - [x] Run `npx tsc --noEmit` and resolve any remaining errors

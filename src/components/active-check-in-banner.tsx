@@ -14,6 +14,8 @@ interface Session {
   checkedIn?: boolean;
   checkingIn?: boolean;
   checkInTime?: string;
+  checkedOut?: boolean;
+  checkoutTime?: string;
 }
 
 export default function ActiveCheckInBanner() {
@@ -91,7 +93,7 @@ export default function ActiveCheckInBanner() {
         const sessionIds = sessionList.map(s => s.id);
         const { data: attendanceData, error: attendanceError } = await supabase
           .from("attendance")
-          .select("session_id, check_in_time")
+          .select("session_id, check_in_time, checkout_time")
           .eq("user_id", authUser.id)
           .eq("status", "Present")
           .in("session_id", sessionIds);
@@ -105,6 +107,14 @@ export default function ActiveCheckInBanner() {
               matchedSession.checkedIn = true;
               matchedSession.checkInTime = att.check_in_time
                 ? new Date(att.check_in_time).toLocaleTimeString("en-IN", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: true,
+                  })
+                : undefined;
+              matchedSession.checkedOut = !!att.checkout_time;
+              matchedSession.checkoutTime = att.checkout_time
+                ? new Date(att.checkout_time).toLocaleTimeString("en-IN", {
                     hour: "2-digit",
                     minute: "2-digit",
                     hour12: true,
@@ -146,61 +156,14 @@ export default function ActiveCheckInBanner() {
     }
   };
 
-  const handleCheckIn = async (e: React.MouseEvent, sessionId: string) => {
+  const handleCheckIn = (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation();
-    if (!user) return;
-
-    // Set checkingIn state for this session locally
-    setActiveSessions(prev =>
-      prev.map(s => (s.id === sessionId ? { ...s, checkingIn: true } : s))
-    );
-
-    try {
-      const { error } = await supabase.from("attendance").insert({
-        session_id: sessionId,
-        user_id: user.id,
-        status: "Present",
-      });
-
-      if (error) {
-        console.error("Error checking in from carousel:", error);
-        alert("Check-in failed: " + error.message);
-        // Reset loading
-        setActiveSessions(prev =>
-          prev.map(s => (s.id === sessionId ? { ...s, checkingIn: false } : s))
-        );
-      } else {
-        const checkInTimeStr = new Date().toLocaleTimeString("en-IN", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        });
-
-        setActiveSessions(prev =>
-          prev.map(s =>
-            s.id === sessionId
-              ? {
-                  ...s,
-                  checkedIn: true,
-                  checkingIn: false,
-                  checkInTime: checkInTimeStr,
-                }
-              : s
-          )
-        );
-      }
-    } catch (err) {
-      console.error("Check-in error:", err);
-      // Reset loading
-      setActiveSessions(prev =>
-        prev.map(s => (s.id === sessionId ? { ...s, checkingIn: false } : s))
-      );
-    }
+    router.push("/scanner");
   };
 
   const handleBannerClick = () => {
-    // Navigates directly to the check-in page
-    router.push("/check-in");
+    // Navigates directly to the scanner page
+    router.push("/scanner");
   };
 
   if (loading || activeSessions.length === 0) {
@@ -218,25 +181,31 @@ export default function ActiveCheckInBanner() {
       >
         {activeSessions.map((session) => {
           const isChecked = session.checkedIn;
+          const isCheckedOut = session.checkedOut;
           
+          let bannerStyle = "bg-gradient-to-r from-amber-500 to-orange-550 dark:from-amber-600 dark:to-orange-700 border-amber-400 dark:border-amber-500 shadow-md shadow-amber-500/5 text-white animate-pulse";
+          if (isCheckedOut) {
+            bannerStyle = "bg-gradient-to-r from-zinc-500 to-zinc-600 dark:from-zinc-600 dark:to-zinc-700 border-zinc-400 dark:border-zinc-500 shadow-md text-white";
+          } else if (isChecked) {
+            bannerStyle = "bg-gradient-to-r from-emerald-500 to-teal-600 dark:from-emerald-600 dark:to-teal-700 border-emerald-400 dark:border-emerald-500 shadow-md shadow-emerald-500/5 text-white";
+          }
+
           return (
             <div
               key={session.id}
               onClick={handleBannerClick}
-              className={`w-full shrink-0 snap-center p-5 rounded-3xl flex flex-col gap-4 relative overflow-hidden transition-all duration-300 border cursor-pointer ${
-                isChecked
-                  ? "bg-gradient-to-r from-emerald-500 to-teal-600 dark:from-emerald-600 dark:to-teal-700 border-emerald-400 dark:border-emerald-500 shadow-md shadow-emerald-500/5 text-white"
-                  : "bg-gradient-to-r from-amber-500 to-orange-550 dark:from-amber-600 dark:to-orange-700 border-amber-400 dark:border-amber-500 shadow-md shadow-amber-500/5 text-white animate-pulse"
-              }`}
-              style={{ animationDuration: isChecked ? "0s" : "3.5s" }}
+              className={`w-full shrink-0 snap-center p-5 rounded-3xl flex flex-col gap-4 relative overflow-hidden transition-all duration-300 border cursor-pointer ${bannerStyle}`}
+              style={{ animationDuration: isChecked || isCheckedOut ? "0s" : "3.5s" }}
             >
               {/* Decorative light reflection */}
               <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-2xl pointer-events-none" />
 
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className={`p-2.5 rounded-xl shrink-0 ${isChecked ? "bg-white/20 text-white" : "bg-white/20 text-white"}`}>
-                    {isChecked ? (
+                  <div className="p-2.5 rounded-xl shrink-0 bg-white/20 text-white">
+                    {isCheckedOut ? (
+                      <CheckCircle2 className="w-5 h-5 opacity-70" />
+                    ) : isChecked ? (
                       <CheckCircle2 className="w-5 h-5" />
                     ) : (
                       <BellRing className="w-5 h-5" />
@@ -245,7 +214,7 @@ export default function ActiveCheckInBanner() {
                   <div className="flex flex-col">
                     <span className="text-[10px] font-bold uppercase tracking-wider opacity-90 flex items-center gap-1">
                       <Sparkles className="w-3 h-3 shrink-0" />
-                      {isChecked ? "Checked-In Current Session" : "Active Session Notification"}
+                      {isCheckedOut ? "Checked-Out of Session" : isChecked ? "Checked-In Current Session" : "Active Session Notification"}
                     </span>
                     <h4 className="text-base font-extrabold leading-snug mt-0.5 max-w-[220px] truncate">
                       {session.topic}
@@ -253,11 +222,15 @@ export default function ActiveCheckInBanner() {
                   </div>
                 </div>
 
-                {isChecked && (
+                {isCheckedOut ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[9px] font-bold bg-white/20 border border-white/20 uppercase tracking-wider shrink-0 opacity-80">
+                    Checked Out
+                  </span>
+                ) : isChecked ? (
                   <span className="px-2.5 py-0.5 rounded-full text-[9px] font-bold bg-white/20 border border-white/20 uppercase tracking-wider shrink-0">
                     Checked In
                   </span>
-                )}
+                ) : null}
               </div>
 
               <div className="flex items-center justify-between border-t border-white/10 pt-3 text-xs gap-3">
@@ -266,28 +239,26 @@ export default function ActiveCheckInBanner() {
                   <span className="truncate">Current Session Window</span>
                 </div>
 
-                {!isChecked ? (
+                {isCheckedOut ? (
+                  <span className="text-[11px] font-semibold text-zinc-200 flex items-center gap-1">
+                    Recorded out at {session.checkoutTime}
+                  </span>
+                ) : isChecked ? (
                   <button
                     onClick={(e) => handleCheckIn(e, session.id)}
-                    disabled={session.checkingIn}
-                    className="h-10 min-h-[40px] px-4 bg-white hover:bg-zinc-50 active:scale-95 disabled:bg-white/80 text-amber-600 dark:text-amber-700 font-extrabold text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                    className="h-10 min-h-[40px] px-4 bg-white hover:bg-zinc-50 active:scale-95 text-emerald-700 font-extrabold text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center justify-center gap-1.5"
                   >
-                    {session.checkingIn ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
-                        <span>Checking In...</span>
-                      </>
-                    ) : (
-                      <>
-                        <UserCheck className="w-3.5 h-3.5" />
-                        <span>Check In Now</span>
-                      </>
-                    )}
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>Scan to Check Out</span>
                   </button>
                 ) : (
-                  <span className="text-[11px] font-semibold text-emerald-100 flex items-center gap-1">
-                    Recorded today at {session.checkInTime}
-                  </span>
+                  <button
+                    onClick={(e) => handleCheckIn(e, session.id)}
+                    className="h-10 min-h-[40px] px-4 bg-white hover:bg-zinc-50 active:scale-95 text-amber-600 font-extrabold text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>Scan to Check In</span>
+                  </button>
                 )}
               </div>
             </div>

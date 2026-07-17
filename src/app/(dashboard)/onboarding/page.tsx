@@ -15,14 +15,7 @@ import {
 } from "lucide-react";
 import { User } from "@supabase/supabase-js";
 
-interface VolunteerProfile {
-  user_id: string;
-  status: string;
-  id_document_url: string | null;
-  nda_document_url: string | null;
-  consent_form_url: string | null;
-  background_check_cleared: boolean;
-}
+type VolunteerProfile = Database["public"]["Tables"]["users"]["Row"];
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -58,9 +51,9 @@ export default function OnboardingPage() {
   const fetchProfile = async (userId: string) => {
     try {
       const { data, error } = await supabase
-        .from("volunteer_profiles")
+        .from("users")
         .select("*")
-        .eq("user_id", userId)
+        .eq("id", userId)
         .maybeSingle();
 
       if (error) {
@@ -68,25 +61,12 @@ export default function OnboardingPage() {
       }
 
       if (!data) {
-        // Create default profile with 'Application' status if it doesn't exist
-        const { data: newProfile, error: createError } = await supabase
-          .from("volunteer_profiles")
-          .insert({
-            user_id: userId,
-            status: "Application",
-            background_check_cleared: false,
-          })
-          .select()
-          .single();
-
-        if (createError) throw createError;
-        setProfile(newProfile);
-      } else {
-        setProfile(data);
+        throw new Error("User record missing from public.users table.");
       }
+      setProfile(data);
     } catch (err) {
       console.error("Error in fetchProfile:", err);
-      setErrorMessage("Failed to load or initialize your onboarding profile.");
+      setErrorMessage("Failed to load your onboarding profile.");
     }
   };
 
@@ -159,13 +139,13 @@ export default function OnboardingPage() {
         throw uploadError;
       }
 
-      // Update URL column in volunteer_profiles
+      // Update URL column in users
       const { error: updateError } = await supabase
-        .from("volunteer_profiles")
+        .from("users")
         .update({
           [docKey]: storagePath,
-        } as unknown as Database["public"]["Tables"]["volunteer_profiles"]["Update"])
-        .eq("user_id", user.id);
+        } as any)
+        .eq("id", user.id);
 
       if (updateError) {
         throw updateError;
@@ -196,13 +176,13 @@ export default function OnboardingPage() {
 
   // Onboarding status pipeline helper
   const stages = [
-    { key: "Application", label: "Application", desc: "Submit paperwork" },
+    { key: "Applied", label: "Applied", desc: "Submit paperwork" },
     { key: "Screening", label: "Screening", desc: "Verify documents" },
     { key: "Orientation", label: "Orientation", desc: "Attend training" },
     { key: "Active", label: "Active", desc: "Ready to volunteer!" },
   ];
 
-  const currentStatus = profile?.status || "Application";
+  const currentStatus = profile?.status || "Applied";
   const currentStageIndex = stages.findIndex((s) => s.key === currentStatus);
 
   return (

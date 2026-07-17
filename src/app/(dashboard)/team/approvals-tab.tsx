@@ -38,16 +38,16 @@ interface RosterRequest {
 
 interface LeaveRequestExtended {
   id: string;
-  user_id: string;
-  center_id: string;
+  volunteer_id: string | null;
   start_date: string;
   end_date: string;
-  reason: string;
+  reason: string | null;
   status: string;
   users: {
     id: string;
     email: string | null;
     role: string;
+    assigned_center_id: string | null;
   } | null;
 }
 
@@ -117,23 +117,23 @@ export default function ApprovalsTab() {
   const fetchLeaveRequests = useCallback(async (centerId: string) => {
     try {
       const { data, error } = await supabase
-        .from("leave_requests")
+        .from("leaves")
         .select(`
           id,
-          user_id,
-          center_id,
+          volunteer_id,
           start_date,
           end_date,
           reason,
           status,
-          users (
+          users:leaves_volunteer_id_fkey (
             id,
             email,
-            role
+            role,
+            assigned_center_id
           )
         `)
         .eq("status", "Pending")
-        .eq("center_id", centerId);
+        .eq("users.assigned_center_id", centerId);
 
       if (error) throw error;
       setLeaveRequests((data as unknown as LeaveRequestExtended[]) || []);
@@ -223,11 +223,12 @@ export default function ApprovalsTab() {
     setUpdatingId(req.id);
     setSuccessMessage(null);
     try {
+      const centerId = req.users?.assigned_center_id;
       if (nextStatus === "Approved") {
         // SMART BACKFILL LOGIC
         // 1. Update status to 'Approved'
         const { error: updateError } = await supabase
-          .from("leave_requests")
+          .from("leaves")
           .update({ status: "Approved" })
           .eq("id", req.id);
 
@@ -246,9 +247,9 @@ export default function ApprovalsTab() {
               start_time
             )
           `)
-          .eq("user_id", req.user_id)
+          .eq("user_id", req.volunteer_id || "")
           .eq("status", "Approved")
-          .eq("sessions.center_id", req.center_id)
+          .eq("sessions.center_id", centerId || "")
           .gte("sessions.start_time", req.start_date)
           .lte("sessions.start_time", req.end_date + "T23:59:59.999Z");
 
@@ -271,7 +272,7 @@ export default function ApprovalsTab() {
       } else {
         // Denied status update
         const { error: updateError } = await supabase
-          .from("leave_requests")
+          .from("leaves")
           .update({ status: "Denied" })
           .eq("id", req.id);
 

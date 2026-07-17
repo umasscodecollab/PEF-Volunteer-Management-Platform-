@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { Database } from "@/lib/supabase/database.types";
 import {
   Users,
   CheckCircle,
@@ -16,22 +17,7 @@ import {
   Building
 } from "lucide-react";
 
-interface VolunteerProfile {
-  user_id: string;
-  status: string;
-  id_document_url: string | null;
-  nda_document_url: string | null;
-  consent_form_url: string | null;
-  background_check_cleared: boolean;
-}
-
-interface VolunteerUser {
-  id: string;
-  email: string | null;
-  role: string;
-  assigned_center_id: string | null;
-  volunteer_profiles: VolunteerProfile | VolunteerProfile[] | null;
-}
+type VolunteerUser = Database["public"]["Tables"]["users"]["Row"];
 
 interface LeadProfile {
   id: string;
@@ -66,47 +52,12 @@ export default function RosterTab() {
     try {
       const { data: usersData, error: usersError } = await supabase
         .from("users")
-        .select(`
-          id,
-          email,
-          role,
-          assigned_center_id
-        `)
+        .select("*")
         .eq("role", "Volunteer")
         .eq("assigned_center_id", centerId);
 
       if (usersError) throw usersError;
-
-      if (!usersData || usersData.length === 0) {
-        setVolunteers([]);
-        return;
-      }
-
-      const userIds = usersData.map((u) => u.id);
-
-      const { data: profilesData, error: profilesError } = await supabase
-        .from("volunteer_profiles")
-        .select(`
-          user_id,
-          status,
-          id_document_url,
-          nda_document_url,
-          consent_form_url,
-          background_check_cleared
-        `)
-        .in("user_id", userIds);
-
-      if (profilesError) throw profilesError;
-
-      const combined = usersData.map((user) => {
-        const profile = profilesData?.find((p) => p.user_id === user.id) || null;
-        return {
-          ...user,
-          volunteer_profiles: profile,
-        };
-      });
-
-      setVolunteers(combined);
+      setVolunteers(usersData || []);
     } catch (err) {
       console.error("Error fetching roster:", err);
       setErrorMessage("Failed to fetch volunteer roster.");
@@ -188,11 +139,11 @@ export default function RosterTab() {
     setErrorMessage(null);
     try {
       const { error } = await supabase
-        .from("volunteer_profiles")
+        .from("users")
         .update({
           background_check_cleared: !currentVal,
         })
-        .eq("user_id", volunteerId);
+        .eq("id", volunteerId);
 
       if (error) throw error;
 
@@ -210,7 +161,7 @@ export default function RosterTab() {
   };
 
   const handlePromoteStatus = async (volunteerId: string, currentStatus: string) => {
-    const pipeline = ["Application", "Screening", "Orientation", "Active"];
+    const pipeline = ["Applied", "Screening", "Orientation", "Active"];
     const currentIndex = pipeline.indexOf(currentStatus);
     
     if (currentIndex === -1 || currentIndex === pipeline.length - 1) return;
@@ -219,9 +170,7 @@ export default function RosterTab() {
 
     // Verify background check clearance before promotion
     const volunteer = volunteers.find((v) => v.id === volunteerId);
-    const rawProfile = volunteer?.volunteer_profiles;
-    const profile = Array.isArray(rawProfile) ? rawProfile[0] : rawProfile;
-    const bgCleared = profile?.background_check_cleared || false;
+    const bgCleared = volunteer?.background_check_cleared || false;
 
     if (!bgCleared) {
       const msg = `Volunteer needs to pass background check before being promoted to ${nextStatus}.`;
@@ -236,11 +185,11 @@ export default function RosterTab() {
 
     try {
       const { error } = await supabase
-        .from("volunteer_profiles")
+        .from("users")
         .update({
           status: nextStatus,
         })
-        .eq("user_id", volunteerId);
+        .eq("id", volunteerId);
 
       if (error) throw error;
 
@@ -258,7 +207,7 @@ export default function RosterTab() {
   };
 
   const handleDemoteStatus = async (volunteerId: string, currentStatus: string) => {
-    const pipeline = ["Application", "Screening", "Orientation", "Active"];
+    const pipeline = ["Applied", "Screening", "Orientation", "Active"];
     const currentIndex = pipeline.indexOf(currentStatus);
     
     if (currentIndex === -1 || currentIndex === 0) return;
@@ -270,11 +219,11 @@ export default function RosterTab() {
 
     try {
       const { error } = await supabase
-        .from("volunteer_profiles")
+        .from("users")
         .update({
           status: prevStatus,
         })
-        .eq("user_id", volunteerId);
+        .eq("id", volunteerId);
 
       if (error) throw error;
 
@@ -321,9 +270,7 @@ export default function RosterTab() {
 
   // Roster filtering
   const filteredVolunteers = volunteers.filter((vol) => {
-    const rawProfile = vol.volunteer_profiles;
-    const profile = Array.isArray(rawProfile) ? rawProfile[0] : rawProfile;
-    const status = profile?.status || "Application";
+    const status = vol.status || "Applied";
 
     if (filterStage === "All") return true;
     if (filterStage === "Pending") return status !== "Active";
@@ -381,145 +328,146 @@ export default function RosterTab() {
             </div>
           </div>
         ) : (
-          filteredVolunteers.map((vol) => {
-            const rawProfile = vol.volunteer_profiles;
-            const profile = Array.isArray(rawProfile) ? rawProfile[0] : rawProfile;
-            
-            const status = profile?.status || "Application";
-            const bgCleared = profile?.background_check_cleared || false;
-            
-            const pipeline = ["Application", "Screening", "Orientation", "Active"];
-            const isCompleted = status === "Active";
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredVolunteers.map((vol) => {
+              const status = vol.status || "Applied";
+              const bgCleared = vol.background_check_cleared || false;
+              
+              const pipeline = ["Applied", "Screening", "Orientation", "Active"];
+              const isCompleted = status === "Active";
 
-            return (
-              <div
-                key={vol.id}
-                className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-2xl p-5 shadow-sm flex flex-col gap-4 relative overflow-hidden transition-all duration-200 hover:shadow-md"
-              >
-                {/* Loader Overlay */}
-                {updatingId === vol.id && (
-                  <div className="absolute inset-0 bg-white/70 dark:bg-zinc-950/70 z-30 flex items-center justify-center backdrop-blur-[1px]">
-                    <Loader2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400 animate-spin" />
-                  </div>
-                )}
-
-                {/* Card Header Info */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex flex-col">
-                    <h3 className="text-sm font-bold text-zinc-900 dark:text-white">
-                      {getDisplayName(vol.email)}
-                    </h3>
-                    <span className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate max-w-[200px] mt-0.5">
-                      {vol.email}
-                    </span>
-                  </div>
-
-                  {/* Status Badge */}
-                  <span
-                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-colors ${
-                      status === "Active"
-                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800/40"
-                        : status === "Orientation"
-                        ? "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400 border-blue-100 dark:border-blue-800/40"
-                        : status === "Screening"
-                        ? "bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 border-amber-100 dark:border-amber-800/40"
-                        : "bg-zinc-50 text-zinc-650 dark:bg-zinc-950 dark:text-zinc-450 border-zinc-150 dark:border-zinc-850"
-                    }`}
-                  >
-                    {status}
-                  </span>
-                </div>
-
-                {/* Background Check Toggle section */}
-                <div className="flex items-center justify-between p-3.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-850 rounded-xl">
-                  <div className="flex items-center gap-2">
-                    {bgCleared ? (
-                      <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400 stroke-[2]" />
-                    ) : (
-                      <AlertCircle className="w-5 h-5 text-amber-500 dark:text-amber-450 stroke-[2]" />
-                    )}
-                    <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
-                      Background Check
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => handleToggleBackgroundCheck(vol.id, bgCleared)}
-                    className={`text-[10px] font-extrabold uppercase tracking-wide px-3.5 py-2 rounded-lg transition-all border min-h-[38px] active:scale-95 ${
-                      bgCleared
-                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800/40 hover:bg-emerald-100"
-                        : "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-850 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800"
-                    }`}
-                  >
-                    {bgCleared ? "Cleared" : "Mark Clear"}
-                  </button>
-                </div>
-
-                {/* Documents Roster list */}
-                <div className="flex flex-col gap-2.5">
-                  <h4 className="text-[10px] font-extrabold text-zinc-400 dark:text-zinc-500 uppercase tracking-wide px-1">
-                    Documents Review
-                  </h4>
-
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { key: "id_document_url", label: "Gov ID" },
-                      { key: "nda_document_url", label: "NDA" },
-                      { key: "consent_form_url", label: "Consent" }
-                    ].map((doc) => {
-                      const docPath = profile?.[doc.key as keyof VolunteerProfile] as string | null;
-                      const hasDoc = !!docPath;
-
-                      return (
-                        <button
-                          key={doc.key}
-                          disabled={!hasDoc}
-                          onClick={() => handleReviewDocument(docPath, doc.label)}
-                          className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all select-none text-center min-h-[70px] ${
-                            hasDoc
-                              ? "bg-white dark:bg-zinc-900 border-emerald-350/30 hover:border-emerald-500/40 text-emerald-700 dark:text-emerald-400 cursor-pointer active:scale-95 shadow-sm"
-                              : "bg-zinc-50 dark:bg-zinc-950 border-zinc-100 dark:border-zinc-850 text-zinc-400 cursor-not-allowed opacity-60"
-                          }`}
-                        >
-                          <Eye className={`w-4 h-4 mb-1.5 ${hasDoc ? "text-emerald-600 dark:text-emerald-450" : "text-zinc-350"}`} />
-                          <span className="text-[10px] font-bold tracking-wide truncate max-w-[80px]">
-                            {doc.label}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Pipeline Actions */}
-                <div className="flex flex-col gap-2 mt-1 pt-1">
-                  {!isCompleted ? (
-                    <button
-                      onClick={() => handlePromoteStatus(vol.id, status)}
-                      className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:hover:bg-emerald-450 active:scale-[0.98] py-3.5 px-4 rounded-xl font-bold text-xs min-h-[48px] shadow-md shadow-emerald-600/10 dark:shadow-none transition-all duration-150"
-                    >
-                      <TrendingUp className="w-4 h-4" />
-                      <span>Promote to {pipeline[pipeline.indexOf(status) + 1]}</span>
-                    </button>
-                  ) : (
-                    <div className="w-full flex items-center justify-center gap-2 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100/50 dark:border-emerald-900/20 text-emerald-700 dark:text-emerald-450 py-3.5 px-4 rounded-xl font-bold text-xs min-h-[48px]">
-                      <UserCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-450 stroke-[2.2]" />
-                      <span>Fully Active Volunteer</span>
+              return (
+                <div
+                  key={vol.id}
+                  className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-2xl p-5 shadow-sm flex flex-col gap-4 relative overflow-hidden transition-all duration-200 hover:shadow-md justify-between"
+                >
+                  {/* Loader Overlay */}
+                  {updatingId === vol.id && (
+                    <div className="absolute inset-0 bg-white/70 dark:bg-zinc-950/70 z-30 flex items-center justify-center backdrop-blur-[1px]">
+                      <Loader2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400 animate-spin" />
                     </div>
                   )}
 
-                  {status !== "Application" && (
-                    <button
-                      onClick={() => handleDemoteStatus(vol.id, status)}
-                      className="w-full flex items-center justify-center gap-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-850 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 active:scale-[0.98] py-3 px-4 rounded-xl font-bold text-xs min-h-[40px] border border-zinc-200 dark:border-zinc-800 transition-all duration-150"
-                    >
-                      <TrendingDown className="w-4 h-4" />
-                      <span>Move Back to {pipeline[pipeline.indexOf(status) - 1]}</span>
-                    </button>
-                  )}
+                  <div className="flex flex-col gap-4">
+                    {/* Card Header Info */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex flex-col">
+                        <h3 className="text-sm font-bold text-zinc-900 dark:text-white">
+                          {getDisplayName(vol.email)}
+                        </h3>
+                        <span className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate max-w-[160px] mt-0.5">
+                          {vol.email}
+                        </span>
+                      </div>
+
+                      {/* Status Badge */}
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-colors ${
+                          status === "Active"
+                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800/40"
+                            : status === "Orientation"
+                            ? "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400 border-blue-100 dark:border-blue-800/40"
+                            : status === "Screening"
+                            ? "bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 border-amber-100 dark:border-amber-800/40"
+                            : "bg-zinc-50 text-zinc-650 dark:bg-zinc-950 dark:text-zinc-450 border-zinc-150 dark:border-zinc-850"
+                        }`}
+                      >
+                        {status}
+                      </span>
+                    </div>
+
+                    {/* Background Check Toggle section */}
+                    <div className="flex items-center justify-between p-3.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-850 rounded-xl">
+                      <div className="flex items-center gap-2">
+                        {bgCleared ? (
+                          <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400 stroke-[2]" />
+                        ) : (
+                          <AlertCircle className="w-5 h-5 text-amber-500 dark:text-amber-450 stroke-[2]" />
+                        )}
+                        <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                          Background Check
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleToggleBackgroundCheck(vol.id, bgCleared)}
+                        className={`text-[10px] font-extrabold uppercase tracking-wide px-3 py-1.5 rounded-lg transition-all border min-h-[38px] active:scale-95 cursor-pointer ${
+                          bgCleared
+                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800/40 hover:bg-emerald-100"
+                            : "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-850 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800"
+                        }`}
+                      >
+                        {bgCleared ? "Cleared" : "Mark Clear"}
+                      </button>
+                    </div>
+
+                    {/* Documents Roster list */}
+                    <div className="flex flex-col gap-2.5">
+                      <h4 className="text-[10px] font-extrabold text-zinc-400 dark:text-zinc-500 uppercase tracking-wide px-1">
+                        Documents Review
+                      </h4>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { key: "id_document_url", label: "Gov ID" },
+                          { key: "nda_document_url", label: "NDA" },
+                          { key: "consent_form_url", label: "Consent" }
+                        ].map((doc) => {
+                          const docPath = vol[doc.key as keyof VolunteerUser] as string | null;
+                          const hasDoc = !!docPath;
+
+                          return (
+                            <button
+                              key={doc.key}
+                              disabled={!hasDoc}
+                              onClick={() => handleReviewDocument(docPath, doc.label)}
+                              className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all select-none text-center min-h-[70px] ${
+                                hasDoc
+                                  ? "bg-white dark:bg-zinc-900 border-emerald-350/30 hover:border-emerald-500/40 text-emerald-700 dark:text-emerald-400 cursor-pointer active:scale-95 shadow-sm"
+                                  : "bg-zinc-50 dark:bg-zinc-950 border-zinc-100 dark:border-zinc-850 text-zinc-400 cursor-not-allowed opacity-60"
+                              }`}
+                            >
+                              <Eye className={`w-4 h-4 mb-1.5 ${hasDoc ? "text-emerald-600 dark:text-emerald-455" : "text-zinc-350"}`} />
+                              <span className="text-[10px] font-bold tracking-wide truncate max-w-[80px]">
+                                {doc.label}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Pipeline Actions */}
+                  <div className="flex flex-col gap-2 mt-4 pt-1">
+                    {!isCompleted ? (
+                      <button
+                        onClick={() => handlePromoteStatus(vol.id, status)}
+                        className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:hover:bg-emerald-450 active:scale-[0.98] py-3.5 px-4 rounded-xl font-bold text-xs min-h-[48px] shadow-md shadow-emerald-600/10 dark:shadow-none transition-all duration-150 cursor-pointer"
+                      >
+                        <TrendingUp className="w-4 h-4" />
+                        <span>Promote to {pipeline[pipeline.indexOf(status) + 1]}</span>
+                      </button>
+                    ) : (
+                      <div className="w-full flex items-center justify-center gap-2 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100/50 dark:border-emerald-900/20 text-emerald-700 dark:text-emerald-450 py-3.5 px-4 rounded-xl font-bold text-xs min-h-[48px]">
+                        <UserCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-450 stroke-[2.2]" />
+                        <span>Fully Active Volunteer</span>
+                      </div>
+                    )}
+
+                    {status !== "Applied" && (
+                      <button
+                        onClick={() => handleDemoteStatus(vol.id, status)}
+                        className="w-full flex items-center justify-center gap-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-850 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 active:scale-[0.98] py-3 px-4 rounded-xl font-bold text-xs min-h-[40px] border border-zinc-200 dark:border-zinc-800 transition-all duration-150 cursor-pointer"
+                      >
+                        <TrendingDown className="w-4 h-4" />
+                        <span>Move Back to {pipeline[pipeline.indexOf(status) - 1]}</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })
+              );
+            })}
+          </div>
         )}
       </section>
     </div>

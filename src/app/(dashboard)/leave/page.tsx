@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { User } from "@supabase/supabase-js";
 
-type LeaveRequest = Database["public"]["Tables"]["leave_requests"]["Row"];
+type LeaveRequest = Database["public"]["Tables"]["leaves"]["Row"];
 
 export default function LeaveRequestsPage() {
   const router = useRouter();
@@ -45,9 +45,9 @@ export default function LeaveRequestsPage() {
     try {
       setFetchError(null);
       const { data, error } = await supabase
-        .from("leave_requests")
+        .from("leaves")
         .select("*")
-        .eq("user_id", userId)
+        .eq("volunteer_id", userId)
         .order("start_date", { ascending: false });
 
       if (error) throw error;
@@ -146,9 +146,8 @@ export default function LeaveRequestsPage() {
     setIsSubmitting(true);
 
     try {
-      const { error } = await supabase.from("leave_requests").insert({
-        user_id: user.id,
-        center_id: assignedCenterId,
+      const { error } = await supabase.from("leaves").insert({
+        volunteer_id: user.id,
         start_date: startDate,
         end_date: endDate,
         reason: reason.trim(),

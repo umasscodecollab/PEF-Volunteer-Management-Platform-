@@ -8,7 +8,7 @@ export default function WorkspaceHub() {
   const [activeTab, setActiveTab] = useState<"announcements" | "resources">("announcements");
 
   return (
-    <div className="flex flex-col gap-6 px-5 py-6 pb-24 animate-fade-in max-w-lg mx-auto w-full">
+    <div className="flex flex-col gap-6 px-5 py-6 pb-24 animate-fade-in max-w-7xl mx-auto w-full">
       <header className="flex flex-col">
         <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
           Workspace

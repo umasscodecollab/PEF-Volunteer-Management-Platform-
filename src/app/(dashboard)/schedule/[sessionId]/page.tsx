@@ -16,7 +16,8 @@ import {
   Check,
   XCircle,
   BadgeCheck,
-  QrCode
+  QrCode,
+  UserCheck
 } from "lucide-react";
 
 type Session = Database["public"]["Tables"]["sessions"]["Row"];
@@ -72,7 +73,7 @@ export default function SessionDetailsPage({ params }: { params: Promise<{ sessi
 
         const { data: attendData, error: attendError } = await supabase
           .from("attendance")
-          .select("*")
+          .select("*, users(email)")
           .eq("session_id", sessionId);
 
         if (!enrollError && !attendError) {
@@ -268,26 +269,88 @@ export default function SessionDetailsPage({ params }: { params: Promise<{ sessi
           ) : (
             <div className="flex flex-col gap-3">
               {selectedSessionData.enrollments.filter(e => e.status === 'Approved').map(e => {
-                const hasCheckedIn = selectedSessionData.attendance.some(a => a.user_id === e.user_id && a.status === 'Present');
+                const attendanceRecord = selectedSessionData.attendance.find(a => a.user_id === e.user_id && a.status === 'Present');
+                const hasCheckedIn = !!attendanceRecord;
+                const hasCheckedOut = !!attendanceRecord?.checkout_time;
                 return (
                   <div key={e.id} className="flex items-center justify-between p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm">
                     <div className="flex flex-col">
                         <span className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
                           {e.users.email}
-                          {hasCheckedIn && <BadgeCheck className="w-4 h-4 text-indigo-500" />}
+                          {hasCheckedIn && !hasCheckedOut && <BadgeCheck className="w-4 h-4 text-indigo-500" />}
+                          {hasCheckedOut && <CheckCircle2 className="w-4 h-4 text-zinc-500" />}
                         </span>
                         <span className="text-xs text-zinc-500">Volunteer</span>
                     </div>
                     {hasCheckedIn && (
-                      <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300 rounded-full">
-                        Checked In
-                      </span>
+                      <div className="flex flex-col items-end gap-1.5">
+                        <span className={`text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full ${hasCheckedOut ? "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400" : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300"}`}>
+                          {hasCheckedOut ? "Checked Out" : "Checked In"}
+                        </span>
+                        <div className="flex flex-col items-end text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">
+                          <span>In: {formatTime(attendanceRecord.check_in_time)}</span>
+                          {hasCheckedOut && <span>Out: {formatTime(attendanceRecord.checkout_time)}</span>}
+                        </div>
+                      </div>
                     )}
                   </div>
                 );
               })}
             </div>
           )}
+        </div>
+
+        {/* Attendance Log (Includes Walk-ins) */}
+        <div className="flex flex-col gap-3 pt-4">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-500 flex items-center gap-2">
+            <UserCheck className="w-4 h-4" />
+            Attendance Log ({selectedSessionData.attendance.length})
+          </h3>
+          <div className="overflow-x-auto bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm">
+            <table className="w-full text-left text-sm whitespace-nowrap">
+              <thead className="bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800">
+                <tr>
+                  <th className="px-4 py-3.5 font-bold text-zinc-900 dark:text-zinc-100">Volunteer Email</th>
+                  <th className="px-4 py-3.5 font-bold text-zinc-900 dark:text-zinc-100">Check In Time</th>
+                  <th className="px-4 py-3.5 font-bold text-zinc-900 dark:text-zinc-100">Check Out Time</th>
+                  <th className="px-4 py-3.5 font-bold text-zinc-900 dark:text-zinc-100">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                {selectedSessionData.attendance.map(a => (
+                  <tr key={a.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                     <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">
+                       {a.users?.email || 'Unknown Volunteer'}
+                     </td>
+                     <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
+                       {a.check_in_time ? formatTime(a.check_in_time) : '-'}
+                     </td>
+                     <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
+                       {a.checkout_time ? formatTime(a.checkout_time) : '-'}
+                     </td>
+                     <td className="px-4 py-3">
+                        {a.checkout_time ? (
+                          <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 uppercase tracking-wide">
+                            Checked Out
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300 uppercase tracking-wide">
+                            Checked In
+                          </span>
+                        )}
+                     </td>
+                  </tr>
+                ))}
+                {selectedSessionData.attendance.length === 0 && (
+                  <tr>
+                     <td colSpan={4} className="px-4 py-8 text-center text-zinc-500 italic">
+                       No attendance records found for this session.
+                     </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

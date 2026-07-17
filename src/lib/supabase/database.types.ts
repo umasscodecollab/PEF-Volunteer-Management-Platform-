@@ -42,6 +42,9 @@ export type Database = {
           session_id: string
           status: string
           user_id: string
+          checkout_time: string | null
+          method: string | null
+          geo_location: string | null
         }
         Insert: {
           check_in_time?: string | null
@@ -50,6 +53,9 @@ export type Database = {
           session_id: string
           status: string
           user_id: string
+          checkout_time?: string | null
+          method?: string | null
+          geo_location?: string | null
         }
         Update: {
           check_in_time?: string | null
@@ -58,6 +64,9 @@ export type Database = {
           session_id?: string
           status?: string
           user_id?: string
+          checkout_time?: string | null
+          method?: string | null
+          geo_location?: string | null
         }
         Relationships: [
           {
@@ -97,6 +106,47 @@ export type Database = {
         }
         Relationships: []
       }
+      batches: {
+        Row: {
+          id: string
+          center_id: string | null
+          name: string
+          grade: string | null
+          subject: string | null
+          schedule_rrule: string | null
+          start_time: string
+          end_time: string
+        }
+        Insert: {
+          id?: string
+          center_id?: string | null
+          name: string
+          grade?: string | null
+          subject?: string | null
+          schedule_rrule?: string | null
+          start_time: string
+          end_time: string
+        }
+        Update: {
+          id?: string
+          center_id?: string | null
+          name?: string
+          grade?: string | null
+          subject?: string | null
+          schedule_rrule?: string | null
+          start_time?: string
+          end_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "batches_center_id_fkey"
+            columns: ["center_id"]
+            isOneToOne: false
+            referencedRelation: "centers"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       sessions: {
         Row: {
           capacity: number
@@ -107,6 +157,9 @@ export type Database = {
           start_time: string
           topic: string
           kiosk_token: string | null
+          batch_id: string | null
+          backup_id: string | null
+          notes: string | null
         }
         Insert: {
           capacity: number
@@ -117,6 +170,9 @@ export type Database = {
           start_time: string
           topic: string
           kiosk_token?: string | null
+          batch_id?: string | null
+          backup_id?: string | null
+          notes?: string | null
         }
         Update: {
           capacity?: number
@@ -127,6 +183,9 @@ export type Database = {
           start_time?: string
           topic?: string
           kiosk_token?: string | null
+          batch_id?: string | null
+          backup_id?: string | null
+          notes?: string | null
         }
         Relationships: [
           {
@@ -136,6 +195,20 @@ export type Database = {
             referencedRelation: "centers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "sessions_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sessions_backup_id_fkey"
+            columns: ["backup_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
         ]
       }
       resources: {
@@ -149,6 +222,9 @@ export type Database = {
           subject: string
           grade_level: string
           created_at: string
+          tags: string[] | null
+          version: string | null
+          center_scope: string[] | null
         }
         Insert: {
           id?: string
@@ -160,6 +236,9 @@ export type Database = {
           subject: string
           grade_level: string
           created_at?: string
+          tags?: string[] | null
+          version?: string | null
+          center_scope?: string[] | null
         }
         Update: {
           id?: string
@@ -171,6 +250,9 @@ export type Database = {
           subject?: string
           grade_level?: string
           created_at?: string
+          tags?: string[] | null
+          version?: string | null
+          center_scope?: string[] | null
         }
         Relationships: [
           {
@@ -196,6 +278,20 @@ export type Database = {
           email: string | null
           id: string
           role: string
+          volunteer_code: string | null
+          phone: string | null
+          city: string | null
+          languages: string[] | null
+          skills: string[] | null
+          availability: Json | null
+          status: string
+          id_verification_status: string
+          consent_accepted: boolean
+          center_scope: string[] | null
+          id_document_url: string | null
+          nda_document_url: string | null
+          consent_form_url: string | null
+          background_check_cleared: boolean
         }
         Insert: {
           assigned_center_id?: string | null
@@ -203,6 +299,20 @@ export type Database = {
           email?: string | null
           id: string
           role: string
+          volunteer_code?: string | null
+          phone?: string | null
+          city?: string | null
+          languages?: string[] | null
+          skills?: string[] | null
+          availability?: Json | null
+          status?: string
+          id_verification_status?: string
+          consent_accepted?: boolean
+          center_scope?: string[] | null
+          id_document_url?: string | null
+          nda_document_url?: string | null
+          consent_form_url?: string | null
+          background_check_cleared?: boolean
         }
         Update: {
           assigned_center_id?: string | null
@@ -210,6 +320,20 @@ export type Database = {
           email?: string | null
           id?: string
           role?: string
+          volunteer_code?: string | null
+          phone?: string | null
+          city?: string | null
+          languages?: string[] | null
+          skills?: string[] | null
+          availability?: Json | null
+          status?: string
+          id_verification_status?: string
+          consent_accepted?: boolean
+          center_scope?: string[] | null
+          id_document_url?: string | null
+          nda_document_url?: string | null
+          consent_form_url?: string | null
+          background_check_cleared?: boolean
         }
         Relationships: [
           {
@@ -217,41 +341,6 @@ export type Database = {
             columns: ["assigned_center_id"]
             isOneToOne: false
             referencedRelation: "centers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      volunteer_profiles: {
-        Row: {
-          user_id: string
-          status: string
-          id_document_url: string | null
-          nda_document_url: string | null
-          consent_form_url: string | null
-          background_check_cleared: boolean
-        }
-        Insert: {
-          user_id: string
-          status?: string
-          id_document_url?: string | null
-          nda_document_url?: string | null
-          consent_form_url?: string | null
-          background_check_cleared?: boolean
-        }
-        Update: {
-          user_id?: string
-          status?: string
-          id_document_url?: string | null
-          nda_document_url?: string | null
-          consent_form_url?: string | null
-          background_check_cleared?: boolean
-        }
-        Relationships: [
-          {
-            foreignKeyName: "volunteer_profiles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -292,50 +381,47 @@ export type Database = {
           }
         ]
       }
-      leave_requests: {
+      leaves: {
         Row: {
           id: string
-          user_id: string
-          center_id: string
+          volunteer_id: string | null
           start_date: string
           end_date: string
-          reason: string
+          reason: string | null
           status: string
-          created_at: string
+          approver_id: string | null
         }
         Insert: {
           id?: string
-          user_id: string
-          center_id: string
+          volunteer_id?: string | null
           start_date: string
           end_date: string
-          reason: string
+          reason?: string | null
           status?: string
-          created_at?: string
+          approver_id?: string | null
         }
         Update: {
           id?: string
-          user_id?: string
-          center_id?: string
+          volunteer_id?: string | null
           start_date?: string
           end_date?: string
-          reason?: string
+          reason?: string | null
           status?: string
-          created_at?: string
+          approver_id?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "leave_requests_user_id_fkey"
-            columns: ["user_id"]
+            foreignKeyName: "leaves_volunteer_id_fkey"
+            columns: ["volunteer_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "leave_requests_center_id_fkey"
-            columns: ["center_id"]
+            foreignKeyName: "leaves_approver_id_fkey"
+            columns: ["approver_id"]
             isOneToOne: false
-            referencedRelation: "centers"
+            referencedRelation: "users"
             referencedColumns: ["id"]
           }
         ]
@@ -349,6 +435,10 @@ export type Database = {
           author_id: string
           center_id: string
           created_at: string
+          audience_filter: string | null
+          channels: string[] | null
+          template_id: string | null
+          sent_at: string | null
         }
         Insert: {
           id?: string
@@ -358,6 +448,10 @@ export type Database = {
           author_id: string
           center_id: string
           created_at?: string
+          audience_filter?: string | null
+          channels?: string[] | null
+          template_id?: string | null
+          sent_at?: string | null
         }
         Update: {
           id?: string
@@ -367,6 +461,10 @@ export type Database = {
           author_id?: string
           center_id?: string
           created_at?: string
+          audience_filter?: string | null
+          channels?: string[] | null
+          template_id?: string | null
+          sent_at?: string | null
         }
         Relationships: [
           {
@@ -381,6 +479,47 @@ export type Database = {
             columns: ["center_id"]
             isOneToOne: false
             referencedRelation: "centers"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      audit_logs: {
+        Row: {
+          id: string
+          actor_id: string | null
+          action: string
+          entity: string
+          entity_id: string | null
+          before_state: Json | null
+          after_state: Json | null
+          timestamp: string
+        }
+        Insert: {
+          id?: string
+          actor_id?: string | null
+          action: string
+          entity: string
+          entity_id?: string | null
+          before_state?: Json | null
+          after_state?: Json | null
+          timestamp?: string
+        }
+        Update: {
+          id?: string
+          actor_id?: string | null
+          action?: string
+          entity?: string
+          entity_id?: string | null
+          before_state?: Json | null
+          after_state?: Json | null
+          timestamp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           }
         ]

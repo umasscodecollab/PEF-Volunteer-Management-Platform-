@@ -26,6 +26,8 @@ interface Session {
   checkedIn?: boolean;
   checkingIn?: boolean;
   checkInTime?: string;
+  checkedOut?: boolean;
+  checkoutTime?: string;
 }
 
 interface Profile {
@@ -121,7 +123,7 @@ export default function CheckInPage() {
           const sessionIds = todaySessions.map(s => s.id);
           const { data: attendanceData, error: attendanceError } = await supabase
             .from("attendance")
-            .select("*")
+            .select("session_id, check_in_time, checkout_time")
             .eq("user_id", authUser.id)
             .eq("status", "Present")
             .in("session_id", sessionIds);
@@ -136,6 +138,14 @@ export default function CheckInPage() {
                 matchedSession.checkedIn = true;
                 matchedSession.checkInTime = att.check_in_time
                   ? new Date(att.check_in_time).toLocaleTimeString("en-IN", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: true,
+                    })
+                  : undefined;
+                matchedSession.checkedOut = !!att.checkout_time;
+                matchedSession.checkoutTime = att.checkout_time
+                  ? new Date(att.checkout_time).toLocaleTimeString("en-IN", {
                       hour: "2-digit",
                       minute: "2-digit",
                       hour12: true,
@@ -347,11 +357,13 @@ export default function CheckInPage() {
                   {/* Card Header info */}
                   <div className="flex flex-col gap-1.5">
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider self-start ${
-                      session.checkedIn 
+                      session.checkedOut 
+                        ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-200/50"
+                        : session.checkedIn 
                         ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200/50 dark:border-emerald-800/30" 
                         : "bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-300 border-zinc-200/40"
                     }`}>
-                      {session.checkedIn ? "Completed Check-In" : "Pending Check-In"}
+                      {session.checkedOut ? "Completed Check-Out" : session.checkedIn ? "Completed Check-In" : "Pending Check-In"}
                     </span>
                     <h4 className="text-lg font-extrabold text-zinc-900 dark:text-white leading-snug mt-1">
                       {session.topic}
@@ -365,8 +377,22 @@ export default function CheckInPage() {
                   </div>
 
                   {/* Action/Success state */}
-                  {session.checkedIn ? (
-                    <div className="bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-250/30 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-inner animate-fade-in">
+                  {session.checkedOut ? (
+                    <div className="bg-zinc-50/50 dark:bg-zinc-900/20 border border-zinc-200/30 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-inner animate-fade-in">
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2 className="w-6 h-6 text-zinc-500 dark:text-zinc-400 shrink-0 stroke-[2.2]" />
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-zinc-700 dark:text-zinc-300 leading-none">
+                            ✅ You have checked out
+                          </span>
+                          <span className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1.5 font-semibold">
+                            Recorded today at {session.checkoutTime}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : session.checkedIn ? (
+                    <div className="bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-250/30 rounded-2xl p-4 flex flex-col gap-3 shadow-inner animate-fade-in">
                       <div className="flex items-center gap-3">
                         <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-400 shrink-0 stroke-[2.2]" />
                         <div className="flex flex-col">
@@ -378,6 +404,13 @@ export default function CheckInPage() {
                           </span>
                         </div>
                       </div>
+                      <button
+                        onClick={() => router.push("/scanner")}
+                        className="w-full h-12 bg-white dark:bg-zinc-800 text-emerald-700 dark:text-emerald-400 font-bold rounded-xl border border-emerald-200 dark:border-emerald-800/50 shadow-sm flex items-center justify-center gap-2"
+                      >
+                        <UserCheck className="w-4 h-4" />
+                        Scan to Check Out
+                      </button>
                     </div>
                   ) : (
                     <button
