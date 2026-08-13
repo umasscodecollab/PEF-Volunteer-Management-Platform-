@@ -6,6 +6,15 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+export type UserRole =
+  | "Volunteer"
+  | "Center Lead"
+  | "Admin"
+  | "Board Director"
+  | "Board of Directors"
+  | "Trainer"
+  | "Partner";
+
 export type Database = {
   graphql_public: {
     Tables: {
@@ -160,6 +169,8 @@ export type Database = {
           batch_id: string | null
           backup_id: string | null
           notes: string | null
+          is_urgent: boolean | null
+          facilitator_id: string | null
         }
         Insert: {
           capacity: number
@@ -173,6 +184,8 @@ export type Database = {
           batch_id?: string | null
           backup_id?: string | null
           notes?: string | null
+          is_urgent?: boolean | null
+          facilitator_id?: string | null
         }
         Update: {
           capacity?: number
@@ -186,6 +199,8 @@ export type Database = {
           batch_id?: string | null
           backup_id?: string | null
           notes?: string | null
+          is_urgent?: boolean | null
+          facilitator_id?: string | null
         }
         Relationships: [
           {
@@ -279,6 +294,8 @@ export type Database = {
           id: string
           role: string
           volunteer_code: string | null
+          first_name: string | null
+          last_name: string | null
           phone: string | null
           city: string | null
           languages: string[] | null
@@ -300,6 +317,8 @@ export type Database = {
           id: string
           role: string
           volunteer_code?: string | null
+          first_name?: string | null
+          last_name?: string | null
           phone?: string | null
           city?: string | null
           languages?: string[] | null
@@ -321,6 +340,8 @@ export type Database = {
           id?: string
           role?: string
           volunteer_code?: string | null
+          first_name?: string | null
+          last_name?: string | null
           phone?: string | null
           city?: string | null
           languages?: string[] | null
@@ -518,6 +539,206 @@ export type Database = {
           {
             foreignKeyName: "audit_logs_actor_id_fkey"
             columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      students: {
+        Row: {
+          id: string
+          center_id: string | null
+          name: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          center_id?: string | null
+          name: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          center_id?: string | null
+          name?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "students_center_id_fkey"
+            columns: ["center_id"]
+            isOneToOne: false
+            referencedRelation: "centers"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      student_attendance: {
+        Row: {
+          id: string
+          session_id: string | null
+          student_id: string | null
+          status: string
+          marked_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          session_id?: string | null
+          student_id?: string | null
+          status: string
+          marked_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          session_id?: string | null
+          student_id?: string | null
+          status?: string
+          marked_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_attendance_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_attendance_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_attendance_marked_by_fkey"
+            columns: ["marked_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      assessments: {
+        Row: {
+          id: string
+          student_id: string | null
+          date: string
+          subject: string
+          score: number | null
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          student_id?: string | null
+          date: string
+          subject: string
+          score?: number | null
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          student_id?: string | null
+          date?: string
+          subject?: string
+          score?: number | null
+          notes?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessments_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      trainings: {
+        Row: {
+          id: string
+          center_id: string | null
+          name: string
+          type: string
+          date: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          center_id?: string | null
+          name: string
+          type: string
+          date: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          center_id?: string | null
+          name?: string
+          type?: string
+          date?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trainings_center_id_fkey"
+            columns: ["center_id"]
+            isOneToOne: false
+            referencedRelation: "centers"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      training_attendance: {
+        Row: {
+          id: string
+          training_id: string | null
+          volunteer_id: string | null
+          status: string
+          marked_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          training_id?: string | null
+          volunteer_id?: string | null
+          status: string
+          marked_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          training_id?: string | null
+          volunteer_id?: string | null
+          status?: string
+          marked_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_attendance_training_id_fkey"
+            columns: ["training_id"]
+            isOneToOne: false
+            referencedRelation: "trainings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_attendance_volunteer_id_fkey"
+            columns: ["volunteer_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_attendance_marked_by_fkey"
+            columns: ["marked_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]

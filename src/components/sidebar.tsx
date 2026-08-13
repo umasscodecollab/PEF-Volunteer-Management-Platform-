@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, Calendar, User, Users, CalendarOff, Briefcase, LogOut } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
@@ -55,14 +56,21 @@ export default function Sidebar() {
     <aside className="hidden md:flex flex-col w-64 h-screen bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 p-5 fixed top-0 left-0 transition-colors duration-200 z-40 select-none">
       {/* Header Branding */}
       <div className="flex items-center gap-3 px-2 py-4 mb-6">
-        <div className="w-9 h-9 rounded-xl bg-emerald-600 dark:bg-emerald-500 flex items-center justify-center text-white font-extrabold text-lg shadow-md shadow-emerald-500/20">
-          P
+        <div className="w-10 h-10 rounded-xl bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700/80 p-1 flex items-center justify-center shadow-sm flex-shrink-0">
+          <Image
+            src="/logo.jpeg"
+            alt="Pratyagra Education Foundation Logo"
+            width={36}
+            height={36}
+            className="w-full h-full object-contain rounded-lg"
+            priority
+          />
         </div>
-        <div className="flex flex-col">
-          <span className="font-extrabold text-sm tracking-wider text-zinc-900 dark:text-white uppercase">
-            PEF Portal
+        <div className="flex flex-col min-w-0">
+          <span className="font-extrabold text-xs tracking-wide text-zinc-900 dark:text-white leading-tight">
+            Pratyagra Education Foundation
           </span>
-          <span className="text-[10px] text-zinc-550 dark:text-zinc-400 font-bold uppercase tracking-widest mt-0.5">
+          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-widest mt-0.5">
             {role}
           </span>
         </div>

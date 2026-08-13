@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
-import { Users, Clock, Flame, AlertCircle, ArrowRight, ClipboardList, ShieldAlert, CheckCircle, Megaphone, Camera } from "lucide-react";
+import { toast } from "sonner";
+import { Users, Clock, Flame, AlertCircle, ArrowRight, ClipboardList, ShieldAlert, CheckCircle, Megaphone, BookOpen, Calendar, AlertTriangle, CheckCircle2, X, Sparkles } from "lucide-react";
 import { User } from "@supabase/supabase-js";
 import ActiveCheckInBanner from "@/components/active-check-in-banner";
 
@@ -30,6 +31,14 @@ export default function CenterLeadDashboard() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState<number>(0);
   const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [upcomingClasses, setUpcomingClasses] = useState<any[]>([]);
+  const [openSessions, setOpenSessions] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<"my-classes" | "open-sessions">("my-classes");
+  
+  // Claim Modal States
+  const [claimingSession, setClaimingSession] = useState<any | null>(null);
+  const [claimAllSeries, setClaimAllSeries] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
 
   const [stats, setStats] = useState({
     fillRate: 0,
@@ -39,6 +48,71 @@ export default function CenterLeadDashboard() {
     totalSessions: 0,
     presentVolunteers: 0,
   });
+
+  const fetchVolunteerSessions = async (userId: string, centerId: string | null) => {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const startOfDayISO = startOfToday.toISOString();
+
+    // Fetch sessions where current user has an approved enrollment ("My Upcoming Classes")
+    const { data: userEnrollments, error: facError } = await supabase
+      .from("session_enrollments")
+      .select("session_id, sessions!inner(id, topic, start_time, end_time, capacity, centers(name))")
+      .eq("user_id", userId)
+      .eq("status", "Approved");
+
+    if (facError) {
+      console.error("Error fetching facilitator sessions:", facError);
+    } else if (userEnrollments) {
+      const myClasses = userEnrollments
+        .map((e: any) => e.sessions)
+        .filter((s: any) => s && new Date(s.start_time) >= startOfToday)
+        .sort((a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+
+      setUpcomingClasses(myClasses);
+    }
+
+    // Fetch open sessions for volunteer's center (0 approved enrollments & user not enrolled)
+    let sessionQuery = supabase
+      .from("sessions")
+      .select(`
+        id, topic, start_time, end_time, capacity, batch_id, is_urgent, center_id, centers(name),
+        session_enrollments (
+          user_id,
+          status
+        )
+      `)
+      .gte("start_time", startOfDayISO)
+      .order("is_urgent", { ascending: false })
+      .order("start_time", { ascending: true });
+
+    if (centerId) {
+      sessionQuery = sessionQuery.eq("center_id", centerId);
+    }
+
+    const { data: sessionsData, error: openError } = await sessionQuery;
+
+    if (openError) {
+      console.error("Error fetching open sessions:", openError.message);
+    } else if (sessionsData) {
+      const unclaimedSessions = sessionsData.filter((s: any) => {
+        const rosters = s.session_enrollments || [];
+        const approvedCount = rosters.filter((r: any) => r.status === "Approved").length;
+        const isUserEnrolled = rosters.some((r: any) => r.user_id === userId);
+        const capacity = s.capacity || 1;
+        return approvedCount < capacity && !isUserEnrolled;
+      });
+
+      // Ensure urgent vacancies strictly sort at the very top
+      unclaimedSessions.sort((a: any, b: any) => {
+        if (a.is_urgent && !b.is_urgent) return -1;
+        if (!a.is_urgent && b.is_urgent) return 1;
+        return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
+      });
+
+      setOpenSessions(unclaimedSessions);
+    }
+  };
 
   useEffect(() => {
     const fetchUserAndProfile = async () => {
@@ -149,6 +223,9 @@ export default function CenterLeadDashboard() {
           if (annData) {
             setAnnouncements(annData);
           }
+
+          // Fetch Volunteer sessions (My Classes & Open Sessions)
+          await fetchVolunteerSessions(user.id, profileData.assigned_center_id);
         }
       } catch (err) {
         console.error("Unexpected error on dashboard mount:", err);
@@ -180,6 +257,101 @@ export default function CenterLeadDashboard() {
   const roleName = profile?.role || "Volunteer";
 
   const onboardingStatus = profile?.status || "Applied";
+
+  const handleClaimSubmit = async () => {
+    if (!claimingSession || !user) return;
+    setIsClaiming(true);
+    try {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
+      if (claimAllSeries && claimingSession.batch_id) {
+        // Fetch all future sessions in the series
+        const { data: seriesSessions, error: seriesErr } = await supabase
+          .from("sessions")
+          .select("id, capacity, session_enrollments(user_id, status)")
+          .eq("batch_id", claimingSession.batch_id)
+          .gte("start_time", startOfToday.toISOString());
+
+        if (seriesErr) {
+          toast.error(`Failed to fetch recurring series: ${seriesErr.message}`);
+        } else if (seriesSessions) {
+          const inserts: any[] = [];
+          for (const s of seriesSessions) {
+            const rosters = s.session_enrollments || [];
+            const approvedCount = rosters.filter((r: any) => r.status === "Approved").length;
+            const isEnrolled = rosters.some((r: any) => r.user_id === user.id);
+            const cap = s.capacity || 1;
+            if (approvedCount < cap && !isEnrolled) {
+              inserts.push({
+                session_id: s.id,
+                user_id: user.id,
+                status: "Pending",
+              });
+            }
+          }
+
+          if (inserts.length > 0) {
+            const { error: insErr } = await supabase
+              .from("session_enrollments")
+              .insert(inserts);
+
+            if (insErr) {
+              toast.error(`Failed to request series sessions: ${insErr.message}`);
+            } else {
+              toast.success("Successfully requested all open sessions in this series! Pending Center Lead approval.");
+              setClaimingSession(null);
+              setClaimAllSeries(false);
+              await fetchVolunteerSessions(user.id, profile?.assigned_center_id || null);
+            }
+          } else {
+            toast.success("All available sessions in series already requested.");
+            setClaimingSession(null);
+            setClaimAllSeries(false);
+          }
+        }
+      } else {
+        // Single session request
+        const { data: existing } = await supabase
+          .from("session_enrollments")
+          .select("id")
+          .eq("session_id", claimingSession.id)
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        let error = null;
+        if (existing) {
+          const { error: updateErr } = await supabase
+            .from("session_enrollments")
+            .update({ status: "Pending" })
+            .eq("id", existing.id);
+          error = updateErr;
+        } else {
+          const { error: insertErr } = await supabase
+            .from("session_enrollments")
+            .insert({
+              session_id: claimingSession.id,
+              user_id: user.id,
+              status: "Pending",
+            });
+          error = insertErr;
+        }
+
+        if (error) {
+          toast.error(`Failed to request session: ${error.message}`);
+        } else {
+          toast.success("Successfully requested session! Pending approval from Center Lead.");
+          setClaimingSession(null);
+          setClaimAllSeries(false);
+          await fetchVolunteerSessions(user.id, profile?.assigned_center_id || null);
+        }
+      }
+    } catch (err: any) {
+      toast.error(`Unexpected error: ${err?.message || err}`);
+    } finally {
+      setIsClaiming(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -319,48 +491,327 @@ export default function CenterLeadDashboard() {
             </div>
           )}
 
-          {/* Tactical Action Buttons for Volunteer */}
-          <div className="grid grid-cols-2 gap-4">
-            <button
-              onClick={() => {
-                if (onboardingStatus !== "Active") {
-                  alert("Onboarding required: Please complete your onboarding documents before joining sessions.");
-                  router.push("/onboarding");
-                } else {
-                  router.push("/scanner");
-                }
-              }}
-              className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-2xl p-4 shadow-sm flex flex-col justify-between min-h-[110px] text-left active:scale-[0.97] transition-all cursor-pointer"
-            >
-              <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-455 rounded-xl self-start">
-                <Camera className="w-5 h-5" />
-              </div>
-              <div className="mt-2">
-                <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block">Scan to Check-In</span>
-                <span className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5 block font-medium">Record attendance</span>
-              </div>
-            </button>
+          {/* Tabbed Volunteer Section: My Upcoming Classes vs Open Sessions Board */}
+          <section className="flex flex-col gap-4 mt-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-200 dark:border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("my-classes")}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === "my-classes"
+                      ? "bg-emerald-600 text-white shadow-sm shadow-emerald-600/20"
+                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                  }`}
+                >
+                  <BookOpen className="w-4 h-4" />
+                  <span>My Upcoming Classes</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                    activeTab === "my-classes" ? "bg-white/20 text-white" : "bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300"
+                  }`}>
+                    {upcomingClasses.length}
+                  </span>
+                </button>
 
-            <button
-              onClick={() => {
-                if (onboardingStatus !== "Active") {
-                  alert("Onboarding required: Please complete your onboarding documents to check schedules.");
-                  router.push("/onboarding");
-                } else {
-                  router.push("/schedule");
-                }
-              }}
-              className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-2xl p-4 shadow-sm flex flex-col justify-between min-h-[110px] text-left active:scale-[0.97] transition-all cursor-pointer"
-            >
-              <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-455 rounded-xl self-start">
-                <Clock className="w-5 h-5" />
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("open-sessions")}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer relative ${
+                    activeTab === "open-sessions"
+                      ? "bg-emerald-600 text-white shadow-sm shadow-emerald-600/20"
+                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Open Sessions</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                    activeTab === "open-sessions" ? "bg-white/20 text-white" : "bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300"
+                  }`}>
+                    {openSessions.length}
+                  </span>
+                  {openSessions.some(s => s.is_urgent) && (
+                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping absolute -top-0.5 -right-0.5" />
+                  )}
+                </button>
               </div>
-              <div className="mt-2">
-                <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block">Weekly Schedule</span>
-                <span className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5 block font-medium">View timings</span>
+
+              <button
+                type="button"
+                onClick={() => router.push("/schedule")}
+                className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider hover:underline flex items-center gap-1 cursor-pointer min-h-[32px] px-2 active:scale-95 transition-all"
+              >
+                Weekly Schedule
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+
+            {activeTab === "my-classes" ? (
+              /* MY UPCOMING CLASSES BOARD */
+              upcomingClasses.length === 0 ? (
+                <div className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-2xl p-5 shadow-sm text-center flex flex-col items-center gap-2">
+                  <Calendar className="w-8 h-8 text-zinc-400" />
+                  <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+                    No upcoming classes assigned as facilitator
+                  </span>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    Check the Open Sessions Board to claim available sessions at your center!
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("open-sessions")}
+                    className="mt-2 text-xs font-bold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 min-h-[36px] cursor-pointer"
+                  >
+                    Explore Open Sessions Board →
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {upcomingClasses.map((cls) => {
+                    const clsCenter = Array.isArray(cls.centers) ? cls.centers[0]?.name : cls.centers?.name;
+                    const startDate = new Date(cls.start_time).toLocaleDateString("en-IN", {
+                      weekday: "short",
+                      day: "numeric",
+                      month: "short",
+                    });
+                    const startTime = new Date(cls.start_time).toLocaleTimeString("en-IN", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: true,
+                    });
+
+                    return (
+                      <div
+                        key={cls.id}
+                        className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                      >
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                            {cls.topic}
+                          </span>
+                          <div className="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400 font-medium">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5 text-zinc-400" />
+                              {startDate} at {startTime}
+                            </span>
+                            {clsCenter && (
+                              <span>
+                                • {clsCenter}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/schedule/${cls.id}/students`)}
+                          className="bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold text-xs px-4 py-2.5 rounded-xl min-h-[44px] transition-all flex items-center justify-center gap-2 shadow-sm shadow-emerald-600/20 cursor-pointer"
+                        >
+                          <span>Mark Student Attendance</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            ) : (
+              /* OPEN SESSIONS BOARD */
+              openSessions.length === 0 ? (
+                <div className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-2xl p-5 shadow-sm text-center flex flex-col items-center gap-2">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+                  <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+                    No open sessions available right now
+                  </span>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    All sessions at your center currently have assigned facilitators.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {openSessions.map((session) => {
+                    const sCenter = Array.isArray(session.centers) ? session.centers[0]?.name : session.centers?.name;
+                    const startDate = new Date(session.start_time).toLocaleDateString("en-IN", {
+                      weekday: "short",
+                      day: "numeric",
+                      month: "short",
+                    });
+                    const startTime = new Date(session.start_time).toLocaleTimeString("en-IN", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: true,
+                    });
+
+                    return (
+                      <div
+                        key={session.id}
+                        className={`bg-white dark:bg-zinc-900 border rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
+                          session.is_urgent
+                            ? "border-amber-300 dark:border-amber-900/60 ring-1 ring-amber-500/20"
+                            : "border-zinc-150 dark:border-zinc-800"
+                        }`}
+                      >
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center gap-2">
+                            {session.is_urgent && (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-200/50 flex items-center gap-1 uppercase tracking-wider">
+                                <AlertTriangle className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+                                Urgent Vacancy
+                              </span>
+                            )}
+                            {session.batch_id && (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-200/40 uppercase tracking-wide">
+                                Recurring Series
+                              </span>
+                            )}
+                          </div>
+
+                          <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                            {session.topic}
+                          </span>
+
+                          <div className="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400 font-medium">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5 text-zinc-400" />
+                              {startDate} at {startTime}
+                            </span>
+                            {sCenter && (
+                              <span>
+                                • {sCenter}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setClaimingSession(session);
+                            setClaimAllSeries(false);
+                          }}
+                          className="bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold text-xs px-5 py-2.5 rounded-xl min-h-[44px] transition-all flex items-center justify-center gap-2 shadow-sm shadow-emerald-600/20 cursor-pointer shrink-0"
+                        >
+                          <Sparkles className="w-4 h-4" />
+                          <span>Request Session</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            )}
+          </section>
+
+          {/* REQUEST SESSION CONFIRMATION MODAL */}
+          {claimingSession && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+              <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 max-w-md w-full shadow-2xl flex flex-col gap-5 relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClaimingSession(null);
+                    setClaimAllSeries(false);
+                  }}
+                  className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <span className="p-2 bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 rounded-xl">
+                      <Sparkles className="w-5 h-5" />
+                    </span>
+                    <h3 className="text-lg font-bold text-zinc-900 dark:text-white">
+                      Request Session
+                    </h3>
+                  </div>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                    You are requesting to facilitate this session at your assigned center.
+                  </p>
+                </div>
+
+                <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-150 dark:border-zinc-800 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                      {claimingSession.topic}
+                    </span>
+                    {claimingSession.is_urgent && (
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 rounded-full">
+                        Urgent
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    <Calendar className="w-3.5 h-3.5 text-zinc-400" />
+                    <span>
+                      {new Date(claimingSession.start_time).toLocaleDateString("en-IN", {
+                        weekday: "short",
+                        day: "numeric",
+                        month: "short",
+                      })}{" "}
+                      at{" "}
+                      {new Date(claimingSession.start_time).toLocaleTimeString("en-IN", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: true,
+                      })}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Series Requesting Toggle (if batch_id is present) */}
+                {claimingSession.batch_id && (
+                  <div className="flex items-center justify-between bg-indigo-50/50 dark:bg-indigo-950/30 p-3.5 rounded-2xl border border-indigo-100 dark:border-indigo-900/40">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200">
+                        Recurring Series
+                      </span>
+                      <span className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80">
+                        Request all future open sessions in this series
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      id="claimAllSeriesToggle"
+                      checked={claimAllSeries}
+                      onChange={(e) => setClaimAllSeries(e.target.checked)}
+                      className="w-5 h-5 accent-emerald-600 rounded cursor-pointer"
+                    />
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setClaimingSession(null);
+                      setClaimAllSeries(false);
+                    }}
+                    className="flex-1 py-3 px-4 rounded-xl border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 font-bold text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors min-h-[44px] cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleClaimSubmit}
+                    disabled={isClaiming}
+                    className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 min-h-[44px] disabled:opacity-50 cursor-pointer"
+                  >
+                    {isClaiming ? (
+                      <span className="flex items-center gap-2">
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Requesting...
+                      </span>
+                    ) : (
+                      <span>Confirm Request</span>
+                    )}
+                  </button>
+                </div>
               </div>
-            </button>
-          </div>
+            </div>
+          )}
         </div>
       ) : (
         /* CENTER LEAD & ADMIN VIEW */
@@ -385,7 +836,7 @@ export default function CenterLeadDashboard() {
               </div>
 
               <button
-                onClick={() => router.push("/team")}
+                onClick={() => router.push("/team?tab=approvals")}
                 className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-650 text-white active:scale-[0.98] py-3.5 rounded-xl font-bold text-xs min-h-[48px] transition-all shadow-md shadow-amber-500/10 cursor-pointer"
               >
                 <span>Review Pending Shifts</span>

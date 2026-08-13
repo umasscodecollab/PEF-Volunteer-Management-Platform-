@@ -405,11 +405,11 @@ export default function CheckInPage() {
                         </div>
                       </div>
                       <button
-                        onClick={() => router.push("/scanner")}
+                        onClick={() => router.push(`/schedule/${session.id}`)}
                         className="w-full h-12 bg-white dark:bg-zinc-800 text-emerald-700 dark:text-emerald-400 font-bold rounded-xl border border-emerald-200 dark:border-emerald-800/50 shadow-sm flex items-center justify-center gap-2"
                       >
                         <UserCheck className="w-4 h-4" />
-                        Scan to Check Out
+                        View Session Details
                       </button>
                     </div>
                   ) : (

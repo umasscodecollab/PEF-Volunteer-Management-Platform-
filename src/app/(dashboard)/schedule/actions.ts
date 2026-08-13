@@ -13,6 +13,7 @@ export async function createBatchAndSessions(data: {
   start_time: string;
   end_time: string;
   capacity: number;
+  student_ids?: string[];
 }) {
   try {
     const {
@@ -26,6 +27,7 @@ export async function createBatchAndSessions(data: {
       start_time,
       end_time,
       capacity,
+      student_ids,
     } = data;
 
     const batch_id = crypto.randomUUID();
@@ -49,12 +51,7 @@ export async function createBatchAndSessions(data: {
       return { success: false, error: batchError.message || "Failed to create batch" };
     }
 
-    // 2. Generate session dates
-    const start = new Date(start_date);
-    const end = new Date(end_date);
-    const sessions = [];
-
-    // Map day names to Date.getDay() integers
+    // Map days string array to standard JS Date day numbers (0-6)
     const dayMap: Record<string, number> = {
       Sun: 0,
       Mon: 1,
@@ -65,7 +62,11 @@ export async function createBatchAndSessions(data: {
       Sat: 6,
     };
 
-    const allowedDays = new Set(days_of_week.map((d) => dayMap[d]));
+    const allowedDays = new Set(days_of_week.map((d) => dayMap[d]).filter((d) => d !== undefined));
+
+    const sessions = [];
+    const start = new Date(start_date);
+    const end = new Date(end_date);
 
     // Loop through calendar days
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
@@ -90,11 +91,36 @@ export async function createBatchAndSessions(data: {
     }
 
     // 3. Bulk insert sessions
-    const { error: sessionsError } = await supabase.from("sessions").insert(sessions);
+    const { data: createdSessions, error: sessionsError } = await supabase
+      .from("sessions")
+      .insert(sessions)
+      .select("id");
 
     if (sessionsError) {
       console.error("Sessions insert error:", sessionsError);
       return { success: false, error: sessionsError.message };
+    }
+
+    // 4. Bulk insert initial student rosters if student_ids provided
+    if (createdSessions && student_ids && student_ids.length > 0) {
+      const initialRosters: any[] = [];
+      createdSessions.forEach((s: any) => {
+        student_ids.forEach((stId: string) => {
+          initialRosters.push({
+            session_id: s.id,
+            student_id: stId,
+            status: "Unmarked",
+          });
+        });
+      });
+
+      const { error: rosterErr } = await supabase
+        .from("student_attendance")
+        .insert(initialRosters);
+
+      if (rosterErr) {
+        console.error("Batch student roster insert error:", rosterErr);
+      }
     }
 
     return { success: true, count: sessions.length };

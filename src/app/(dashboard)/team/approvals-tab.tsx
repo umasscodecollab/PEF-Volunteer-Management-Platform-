@@ -33,6 +33,8 @@ interface RosterRequest {
     id: string;
     email: string | null;
     role: string;
+    first_name?: string | null;
+    last_name?: string | null;
   } | null;
 }
 
@@ -48,6 +50,8 @@ interface LeaveRequestExtended {
     email: string | null;
     role: string;
     assigned_center_id: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
   } | null;
 }
 
@@ -72,13 +76,19 @@ export default function ApprovalsTab() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const getDisplayName = (email: string | null) => {
-    if (!email) return "Volunteer";
-    const prefix = email.split("@")[0];
-    return prefix
-      .split(".")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
+  const getDisplayName = (userObj?: { email?: string | null; first_name?: string | null; last_name?: string | null } | null) => {
+    if (!userObj) return "Volunteer";
+    if (userObj.first_name || userObj.last_name) {
+      return `${userObj.first_name || ""} ${userObj.last_name || ""}`.trim();
+    }
+    if (userObj.email) {
+      const prefix = userObj.email.split("@")[0];
+      return prefix
+        .split(".")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+    }
+    return "Volunteer";
   };
 
   const fetchRequests = useCallback(async (centerId: string) => {
@@ -100,7 +110,9 @@ export default function ApprovalsTab() {
           users (
             id,
             email,
-            role
+            role,
+            first_name,
+            last_name
           )
         `)
         .eq("status", "Pending")
@@ -129,7 +141,9 @@ export default function ApprovalsTab() {
             id,
             email,
             role,
-            assigned_center_id
+            assigned_center_id,
+            first_name,
+            last_name
           )
         `)
         .eq("status", "Pending")
@@ -388,7 +402,7 @@ export default function ApprovalsTab() {
                       </div>
                       <div className="flex flex-col">
                         <h3 className="text-sm font-bold text-zinc-900 dark:text-white">
-                          {getDisplayName(volunteerEmail)}
+                          {getDisplayName(req.users)}
                         </h3>
                         <span className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate max-w-[200px] mt-0.5">
                           {volunteerEmail}
@@ -472,7 +486,7 @@ export default function ApprovalsTab() {
                       </div>
                       <div className="flex flex-col">
                         <h3 className="text-sm font-bold text-zinc-900 dark:text-white">
-                          {getDisplayName(volunteerEmail)}
+                          {getDisplayName(req.users)}
                         </h3>
                         <span className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate max-w-[200px] mt-0.5">
                           {volunteerEmail}

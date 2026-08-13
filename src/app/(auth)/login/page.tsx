@@ -2,8 +2,11 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { Mail, Lock, Eye, EyeOff, Loader2, KeyRound } from "lucide-react";
+
+import Image from "next/image";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -116,13 +119,20 @@ export default function LoginPage() {
       <div className="w-full max-w-sm mx-auto flex flex-col gap-8">
         {/* Brand/Header */}
         <header className="flex flex-col items-center text-center">
-          <div className="p-3 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-2xl mb-4 border border-emerald-200/50 dark:border-emerald-800/30 shadow-inner">
-            <KeyRound className="w-8 h-8 stroke-[2.2]" />
+          <div className="p-2.5 bg-white dark:bg-zinc-900 rounded-2xl mb-3 border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center justify-center">
+            <Image
+              src="/logo.jpeg"
+              alt="Pratyagra Education Foundation"
+              width={48}
+              height={48}
+              className="w-12 h-12 object-contain rounded-xl"
+              priority
+            />
           </div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-50">
-            Pratham Education
+          <h1 className="text-xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-50">
+            Pratyagra Education Foundation
           </h1>
-          <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mt-1.5">
+          <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mt-1">
             Volunteer Management Portal
           </p>
         </header>
@@ -240,6 +250,14 @@ export default function LoginPage() {
               )}
             </button>
 
+            <div className="pt-2 text-center">
+              <Link
+                href="/apply"
+                className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 transition-colors"
+              >
+                New volunteer? Apply here →
+              </Link>
+            </div>
           </form>
         </div>
 

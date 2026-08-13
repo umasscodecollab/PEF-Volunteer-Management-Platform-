@@ -1,11 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import RosterTab from "./roster-tab";
 import ApprovalsTab from "./approvals-tab";
 
-export default function TeamHub() {
-  const [activeTab, setActiveTab] = useState<"roster" | "approvals">("roster");
+function TeamHubContent() {
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+
+  const [activeTab, setActiveTab] = useState<"roster" | "approvals">(
+    tabParam === "approvals" ? "approvals" : "roster"
+  );
+
+  useEffect(() => {
+    if (tabParam === "approvals") {
+      setActiveTab("approvals");
+    } else if (tabParam === "roster") {
+      setActiveTab("roster");
+    }
+  }, [tabParam]);
 
   return (
     <div className="flex flex-col gap-6 px-5 py-6 pb-24 animate-fade-in max-w-7xl mx-auto w-full">
@@ -47,5 +61,17 @@ export default function TeamHub() {
         {activeTab === "approvals" && <ApprovalsTab />}
       </div>
     </div>
+  );
+}
+
+export default function TeamHub() {
+  return (
+    <Suspense fallback={
+      <div className="p-6 text-sm font-medium text-zinc-500 animate-pulse">
+        Loading Team Hub...
+      </div>
+    }>
+      <TeamHubContent />
+    </Suspense>
   );
 }

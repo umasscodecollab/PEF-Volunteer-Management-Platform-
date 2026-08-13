@@ -199,7 +199,7 @@ export default function OnboardingPage() {
           Volunteer Onboarding
         </h1>
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-          Complete these steps to activate your volunteer status at Pratham.
+          Complete these steps to activate your volunteer status at Pratyagra Education Foundation.
         </p>
       </header>
 

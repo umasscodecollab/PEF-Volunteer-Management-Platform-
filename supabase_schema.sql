@@ -145,7 +145,7 @@ ALTER TABLE ONLY "public"."users"
 
 
 
-CREATE POLICY "Allow authenticated users SELECT on centers" ON "public"."centers" FOR SELECT TO "authenticated" USING (true);
+CREATE POLICY "Allow public select on centers" ON "public"."centers" FOR SELECT TO "anon", "authenticated" USING (true);
 
 
 

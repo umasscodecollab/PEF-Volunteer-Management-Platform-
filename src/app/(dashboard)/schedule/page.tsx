@@ -78,10 +78,28 @@ export default function SchedulePage() {
   const [endTime, setEndTime] = useState("11:30");
   const [capacity, setCapacity] = useState("4");
 
+  // Student Assignment Roster State
+  const [centerStudents, setCenterStudents] = useState<any[]>([]);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+
   // Calendar State (Desktop)
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [viewMode, setViewMode] = useState<"Month" | "Week" | "Day">("Month");
+
+  useEffect(() => {
+    if (assignedCenterId) {
+      const fetchCenterStudents = async () => {
+        const { data } = await supabase
+          .from("students")
+          .select("id, name")
+          .eq("center_id", assignedCenterId)
+          .order("name", { ascending: true });
+        if (data) setCenterStudents(data);
+      };
+      fetchCenterStudents();
+    }
+  }, [assignedCenterId]);
 
   const fetchSessions = async () => {
     setFetchError("");
@@ -275,19 +293,41 @@ export default function SchedulePage() {
     setIsSubmitting(true);
 
     try {
-      const { error } = await supabase.from("sessions").insert({
-        topic: topic.trim(),
-        start_time: startDateTime.toISOString(),
-        end_time: endDateTime.toISOString(),
-        capacity: capacityNum,
-        center_id: assignedCenterId,
-      });
+      const { data: newSession, error } = await supabase
+        .from("sessions")
+        .insert({
+          topic: topic.trim(),
+          start_time: startDateTime.toISOString(),
+          end_time: endDateTime.toISOString(),
+          capacity: capacityNum,
+          center_id: assignedCenterId,
+        })
+        .select()
+        .single();
 
       if (error) {
         setFormError(error.message || "Failed to create session.");
       } else {
+        // If students were selected for the initial roster, bulk insert into student_attendance
+        if (newSession && selectedStudentIds.length > 0) {
+          const initialRoster = selectedStudentIds.map((stId) => ({
+            session_id: newSession.id,
+            student_id: stId,
+            status: "Unmarked",
+            marked_by: user?.id,
+          }));
+          const { error: attInsertErr } = await supabase
+            .from("student_attendance")
+            .insert(initialRoster);
+
+          if (attInsertErr) {
+            console.error("Error creating initial student roster:", attInsertErr);
+          }
+        }
+
         setFormSuccess("Session created successfully!");
         setTopic("");
+        setSelectedStudentIds([]);
         const today = new Date().toISOString().split("T")[0];
         setDate(today);
         setStartTime("10:00");
@@ -486,9 +526,9 @@ export default function SchedulePage() {
   const renderSessionCard = (session: Session, tag: "Today" | "Upcoming" | "Past") => {
     let badgeClass = "bg-zinc-100 text-zinc-800 dark:bg-zinc-850 dark:text-zinc-350 border-zinc-200/40";
     if (tag === "Today") {
-      badgeClass = "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-405 border-amber-250/20";
+      badgeClass = "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400 border-amber-200/20";
     } else if (tag === "Upcoming") {
-      badgeClass = "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-400 border-indigo-250/20";
+      badgeClass = "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-400 border-indigo-200/20";
     }
 
     return (
@@ -818,7 +858,7 @@ export default function SchedulePage() {
               <>
                 <button
                   onClick={() => setIsBatchBuilderOpen(true)}
-                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-455 text-white font-bold text-sm px-5 py-3 rounded-2xl shadow-lg shadow-indigo-500/10 transition-all hover:translate-y-[-1px] active:translate-y-[0] min-h-[48px] cursor-pointer"
+                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400 text-white font-bold text-sm px-5 py-3 rounded-2xl shadow-lg shadow-indigo-500/10 transition-all hover:translate-y-[-1px] active:translate-y-[0] min-h-[48px] cursor-pointer"
                 >
                   <Plus className="w-4.5 h-4.5 stroke-[2.5]" />
                   Create Recurring Batch
@@ -1163,32 +1203,30 @@ export default function SchedulePage() {
 
         </div>
 
-        {/* BOTTOM ACTION BUTTONS */}
-        <div className="flex items-center justify-center gap-5 mt-6 border-t border-zinc-200 dark:border-zinc-800 pt-6">
-          <button
-            onClick={() => {
-              if (role === "Center Lead" || role === "Admin") {
-                setIsModalOpen(true);
-              } else {
+        {/* BOTTOM ACTION BUTTONS (VOLUNTEERS ONLY) */}
+        {role === "Volunteer" && (
+          <div className="flex items-center justify-center gap-5 mt-6 border-t border-zinc-200 dark:border-zinc-800 pt-6">
+            <button
+              onClick={() => {
                 setRequestModalType("add");
                 setIsRequestModalOpen(true);
-              }
-            }}
-            className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded-xl min-h-[48px] active:scale-[0.98] transition-all cursor-pointer shadow-md shadow-emerald-500/10"
-          >
-            Add Shift Request
-          </button>
-          
-          <button
-            onClick={() => {
-              setRequestModalType("drop");
-              setIsRequestModalOpen(true);
-            }}
-            className="px-6 py-3 bg-indigo-550 hover:bg-indigo-500 text-white font-bold text-sm rounded-xl min-h-[48px] active:scale-[0.98] transition-all cursor-pointer shadow-md shadow-indigo-550/10"
-          >
-            Change/Drop Shift Request
-          </button>
-        </div>
+              }}
+              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded-xl min-h-[48px] active:scale-[0.98] transition-all cursor-pointer shadow-md shadow-emerald-500/10"
+            >
+              Request a Session Shift
+            </button>
+            
+            <button
+              onClick={() => {
+                setRequestModalType("drop");
+                setIsRequestModalOpen(true);
+              }}
+              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-xl min-h-[48px] active:scale-[0.98] transition-all cursor-pointer shadow-md shadow-indigo-600/20"
+            >
+              Change/Drop Shift Request
+            </button>
+          </div>
+        )}
 
       </div>
 
@@ -1299,6 +1337,44 @@ export default function SchedulePage() {
                   disabled={isSubmitting}
                   className="w-full min-h-[48px] px-4 rounded-xl border border-zinc-200 dark:border-zinc-850 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-550 dark:focus:ring-emerald-400 focus:border-transparent text-zinc-900 dark:text-white disabled:opacity-50"
                 />
+              </div>
+
+              {/* Assign Students Multi-Select Dropdown */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-505 dark:text-zinc-400 flex items-center justify-between">
+                  <span>Assign Students (Initial Roster)</span>
+                  <span className="text-[10px] text-zinc-400 font-normal">
+                    {selectedStudentIds.length} selected
+                  </span>
+                </label>
+                {centerStudents.length === 0 ? (
+                  <div className="p-3.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs text-zinc-400 italic">
+                    No students found in your center to assign.
+                  </div>
+                ) : (
+                  <select
+                    multiple
+                    value={selectedStudentIds}
+                    onChange={(e) => {
+                      const options = Array.from(
+                        e.target.selectedOptions,
+                        (opt) => opt.value
+                      );
+                      setSelectedStudentIds(options);
+                    }}
+                    disabled={isSubmitting}
+                    className="w-full min-h-[100px] px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-850 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-550 dark:focus:ring-emerald-400 focus:border-transparent text-zinc-900 dark:text-white disabled:opacity-50 font-medium select-none cursor-pointer"
+                  >
+                    {centerStudents.map((st) => (
+                      <option key={st.id} value={st.id} className="py-1 px-2">
+                        {st.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <span className="text-[10px] text-zinc-400 font-medium">
+                  Hold Ctrl/Cmd to select multiple students. You can also leave empty for an empty initial roster.
+                </span>
               </div>
 
               <div className="flex flex-col gap-3 mt-4">

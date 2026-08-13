@@ -158,12 +158,11 @@ export default function ActiveCheckInBanner() {
 
   const handleCheckIn = (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation();
-    router.push("/scanner");
+    router.push(`/schedule/${sessionId}`);
   };
 
   const handleBannerClick = () => {
-    // Navigates directly to the scanner page
-    router.push("/scanner");
+    router.push("/schedule");
   };
 
   if (loading || activeSessions.length === 0) {

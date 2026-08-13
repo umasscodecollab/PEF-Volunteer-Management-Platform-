@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { X, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { supabase } from "@/lib/supabase/client";
 import { createBatchAndSessions } from "./actions";
 
 interface BatchBuilderProps {
@@ -32,6 +33,24 @@ export default function BatchBuilder({
   const [endTime, setEndTime] = useState("11:30");
   const [capacity, setCapacity] = useState("4");
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
+
+  // Student Assignment State
+  const [centerStudents, setCenterStudents] = useState<any[]>([]);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+
+  React.useEffect(() => {
+    if (centerId && isOpen) {
+      const fetchStudents = async () => {
+        const { data } = await supabase
+          .from("students")
+          .select("id, name")
+          .eq("center_id", centerId)
+          .order("name", { ascending: true });
+        if (data) setCenterStudents(data);
+      };
+      fetchStudents();
+    }
+  }, [centerId, isOpen]);
 
   if (!isOpen) return null;
 
@@ -70,6 +89,7 @@ export default function BatchBuilder({
         start_time: startTime,
         end_time: endTime,
         capacity: cap,
+        student_ids: selectedStudentIds,
       });
 
       if (!result.success) {
@@ -262,6 +282,44 @@ export default function BatchBuilder({
               disabled={isSubmitting}
               className="w-full min-h-[48px] px-4 rounded-xl border border-zinc-200 dark:border-zinc-850 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-550 dark:focus:ring-emerald-400 focus:border-transparent text-zinc-900 dark:text-white disabled:opacity-50"
             />
+          </div>
+
+          {/* Assign Students Multi-Select Dropdown */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-zinc-505 dark:text-zinc-400 flex items-center justify-between">
+              <span>Assign Students (Batch Roster)</span>
+              <span className="text-[10px] text-zinc-400 font-normal">
+                {selectedStudentIds.length} selected
+              </span>
+            </label>
+            {centerStudents.length === 0 ? (
+              <div className="p-3.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs text-zinc-400 italic">
+                No students found in your center to assign.
+              </div>
+            ) : (
+              <select
+                multiple
+                value={selectedStudentIds}
+                onChange={(e) => {
+                  const options = Array.from(
+                    e.target.selectedOptions,
+                    (opt) => opt.value
+                  );
+                  setSelectedStudentIds(options);
+                }}
+                disabled={isSubmitting}
+                className="w-full min-h-[100px] px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-850 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-550 dark:focus:ring-emerald-400 focus:border-transparent text-zinc-900 dark:text-white disabled:opacity-50 font-medium select-none cursor-pointer"
+              >
+                {centerStudents.map((st) => (
+                  <option key={st.id} value={st.id} className="py-1 px-2">
+                    {st.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <span className="text-[10px] text-zinc-400 font-medium">
+              Hold Ctrl/Cmd to select multiple students. Assigned students will be added to all generated sessions in this batch.
+            </span>
           </div>
 
           <div className="flex flex-col gap-3 mt-4">
