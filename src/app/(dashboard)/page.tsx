@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { Users, Clock, Flame, AlertCircle, ArrowRight, ClipboardList, ShieldAlert, CheckCircle, Megaphone, BookOpen, Calendar, AlertTriangle, CheckCircle2, X, Sparkles } from "lucide-react";
+import { Users, Clock, Flame, AlertCircle, ArrowRight, ClipboardList, ShieldAlert, CheckCircle, Megaphone, BookOpen, Calendar, AlertTriangle, CheckCircle2, X, Sparkles, GraduationCap } from "lucide-react";
 import { User } from "@supabase/supabase-js";
 import ActiveCheckInBanner from "@/components/active-check-in-banner";
 
@@ -701,6 +702,30 @@ export default function CenterLeadDashboard() {
             )}
           </section>
 
+          {/* Student Directory Action Card */}
+          <Link
+            href="/students"
+            className="group bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 hover:border-emerald-500/50 dark:hover:border-emerald-500/50 rounded-2xl p-4 sm:p-5 shadow-sm hover:shadow-md transition-all flex items-center justify-between gap-4 cursor-pointer active:scale-[0.99]"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                <GraduationCap className="w-6 h-6 stroke-[2]" />
+              </div>
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                  View Student Directory
+                </h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium truncate">
+                  Browse student profiles, historical attendance, and log ad-hoc assessments
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
+              <span className="hidden sm:inline">Open Directory</span>
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </Link>
+
           {/* REQUEST SESSION CONFIRMATION MODAL */}
           {claimingSession && (
             <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
@@ -907,6 +932,30 @@ export default function CenterLeadDashboard() {
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
+
+          {/* Student Directory Action Card for Leads */}
+          <Link
+            href="/students"
+            className="group bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 hover:border-emerald-500/50 dark:hover:border-emerald-500/50 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex items-center justify-between gap-4 cursor-pointer active:scale-[0.99]"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                <GraduationCap className="w-6 h-6 stroke-[2]" />
+              </div>
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                  View Student Directory & Assessments
+                </h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium truncate">
+                  View center student rosters, historical performance, and log ad-hoc evaluations
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
+              <span className="hidden sm:inline">Open Directory</span>
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </Link>
 
           {/* Supporting Context Section */}
           <section className="grid grid-cols-2 gap-4">

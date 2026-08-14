@@ -1,32 +1,34 @@
 # PEF Operations Management System (OMS) Specification
 
-## 1. Purpose & Vision
-A simple, mobile-first, and low-data system for PEF to manage volunteers and sessions. It must reduce manual coordination time, improve attendance reliability, and provide audit-ready reports[cite: 1].
+## 1. Project Context & Constraints
+* **Purpose:** A simple, mobile-first system for PEF to manage volunteers, attendance, and assessments.
+* **Architecture:** Mobile-first, Next.js PWA (Progressive Web App). Must be highly accessible.
+* **Backend:** Live Supabase (PostgreSQL) Cloud Instance.
+* **Security:** Strict Role-Based Access Control (RBAC). Data MUST be scoped by `center_id` using Postgres Row Level Security (RLS). Client-side filtering as a security measure is strictly prohibited.
 
 ## 2. Roles & Access (Least Privilege)
-* **Org Admin:** Full control across all centers[cite: 1].
-* **Board Director:** Org-wide read-only access and export capabilities[cite: 1].
-* **Center Lead:** Manages volunteers, schedules, and approvals for a specific center[cite: 1].
-* **Volunteer:** Checks in, logs sessions, asks for leave, and views schedules[cite: 1].
-* **Trainer/Content Lead:** Curates and uploads lesson resources[cite: 1].
+* **Org Admin / Board Director:** Org-wide read-only access and export capabilities.
+* **Center Lead:** Manages volunteers, schedules, attendance, and approvals for a specific center.
+* **Volunteer:** Teaches sessions, logs student attendance, tracks student assessments, and requests shifts/leaves.
 
 ## 3. Core Data Model (Supabase PostgreSQL)
-* **users:** `id`, `role`, `email`, `volunteer_code`, `phone`, `city`, `languages`, `skills`, `availability`, `status`, `id_verification_status`, `consent_accepted`, `assigned_center_id`, `center_scope`[cite: 1].
-* **centers:** `id`, `name`, `location`, `timezone`[cite: 1].
-* **batches:** `id`, `center_id`, `name`, `grade`, `subject`, `schedule_rrule`, `start_time`, `end_time`[cite: 1].
-* **sessions:** `id`, `batch_id`, `date`, `start_time`, `end_time`, `facilitator_id`, `backup_id`, `status`, `notes`[cite: 1].
-* **attendance:** `id`, `session_id`, `volunteer_id`, `checkin_time`, `checkout_time`, `method`, `geo_location`[cite: 1].
-* **leaves:** `id`, `volunteer_id`, `start_date`, `end_date`, `reason`, `status`, `approver_id`[cite: 1].
-* **resources:** `id`, `title`, `tags`, `file_url`, `version`, `center_scope`[cite: 1].
-* **announcements:** `id`, `audience_filter`, `channels`, `template_id`, `sent_at`[cite: 1].
-* **audit_logs:** `id`, `actor_id`, `action`, `entity`, `entity_id`, `before_state`, `after_state`, `timestamp`[cite: 1].
+* **users (auth):** Managed by Supabase Auth.
+* **volunteer_profiles:** `id` (matches auth.uid), `role`, `assigned_center_id`, `status`.
+* **centers:** `id`, `name`, `location`.
+* **students:** `id`, `name`, `center_id` (Students belong to a center, NOT a specific volunteer).
+* **sessions:** `id`, `batch_id` (for recurring), `center_id`, `date`, `start_time`, `end_time`, `facilitator_id` (NULL means open shift), `is_urgent` (boolean flag for vacancies).
+* **student_attendance:** `session_id`, `student_id`, `status` ('Present', 'Absent', 'Unmarked').
+* **assessments:** `id`, `student_id`, `session_id`, `exam_type` ('Diagnostic', 'Monthly', 'Mid-Year', 'End-of-Year'), `score_achieved` (numeric, nullable), `max_score` (numeric), `status` ('Completed', 'Incomplete', 'Not Assessed'), `date_administered`, `recorded_by`, `notes`.
+* **leave_requests:** `id`, `user_id`, `center_id`, `start_date`, `end_date`, `status` ('Pending', 'Approved', 'Denied').
 
-## 4. Key Workflows
-* **Onboarding:** Application -> Screening -> Orientation -> Active[cite: 1].
-* **Scheduling:** Leads create recurring batches; volunteers claim slots[cite: 1].
-* **Attendance:** QR check-in/out with post-session logs[cite: 1].
-* **Leave:** Single/multi-day requests with auto-backfill suggestions[cite: 1].
+## 4. Key Workflows & Architecture Pivots
+* **Scheduling (Unified Architecture):** "Sessions" and "Shift Requests" are the same entity. An open shift is a session where `facilitator_id` is null. Leads can broadcast vacancies (`is_urgent`). Volunteers "Request" sessions, which Leads must then "Approve".
+* **Attendance (Manual Grids):** The old QR system is DEPRECATED. Center Leads log volunteer attendance via a grid. Volunteers log student attendance via a grid on the Session Details page. Users can add new students to a session/batch dynamically.
+* **Assessments (Dual-Entry):** Volunteers can log bulk assessments during a session (via a sheet/modal) or log ad-hoc assessments directly on a Student's Profile page.
 
-## 5. Non-Functional Requirements
-* **Usability:** Mobile-first responsive UI, transitioning to desktop calendar views[cite: 1].
-* **Compliance:** DPDP Act (India) aligned[cite: 1].
+## 5. AI Agent Directives (CRITICAL)
+* **NO HARDCODED MOCK DATA:** All user states must be derived dynamically from `supabase.auth.getUser()`. Never hardcode names, emails, or center IDs in the UI components.
+* **RLS Reliance:** Data fetching must rely entirely on database-level RLS policies. Do not pass `center_id` filters in the Supabase client queries unless strictly needed for joins or dropdowns.
+* **Styling:** NEVER write raw CSS; use Tailwind utility classes exclusively. Build for mobile-first.
+* **Notifications:** Use modern `sonner` toasts for success/error states. DO NOT use native browser `alert()` dialogs.
+* **Optimistic UI:** Ensure grids, toggles, and request buttons update local state optimistically before awaiting the database response.

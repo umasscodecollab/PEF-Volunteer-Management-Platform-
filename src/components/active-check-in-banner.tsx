@@ -192,8 +192,8 @@ export default function ActiveCheckInBanner() {
           return (
             <div
               key={session.id}
-              onClick={handleBannerClick}
-              className={`w-full shrink-0 snap-center p-5 rounded-3xl flex flex-col gap-4 relative overflow-hidden transition-all duration-300 border cursor-pointer ${bannerStyle}`}
+              onClick={() => router.push(`/schedule/${session.id}`)}
+              className={`w-full shrink-0 snap-center p-5 rounded-3xl flex flex-col gap-4 relative overflow-hidden transition-all duration-300 border cursor-pointer hover:opacity-95 ${bannerStyle}`}
               style={{ animationDuration: isChecked || isCheckedOut ? "0s" : "3.5s" }}
             >
               {/* Decorative light reflection */}
@@ -238,27 +238,9 @@ export default function ActiveCheckInBanner() {
                   <span className="truncate">Current Session Window</span>
                 </div>
 
-                {isCheckedOut ? (
-                  <span className="text-[11px] font-semibold text-zinc-200 flex items-center gap-1">
-                    Recorded out at {session.checkoutTime}
-                  </span>
-                ) : isChecked ? (
-                  <button
-                    onClick={(e) => handleCheckIn(e, session.id)}
-                    className="h-10 min-h-[40px] px-4 bg-white hover:bg-zinc-50 active:scale-95 text-emerald-700 font-extrabold text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center justify-center gap-1.5"
-                  >
-                    <UserCheck className="w-3.5 h-3.5" />
-                    <span>Scan to Check Out</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={(e) => handleCheckIn(e, session.id)}
-                    className="h-10 min-h-[40px] px-4 bg-white hover:bg-zinc-50 active:scale-95 text-amber-600 font-extrabold text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center justify-center gap-1.5"
-                  >
-                    <UserCheck className="w-3.5 h-3.5" />
-                    <span>Scan to Check In</span>
-                  </button>
-                )}
+                <div className="px-3.5 py-2 bg-white/20 hover:bg-white/30 text-white font-extrabold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 shrink-0 border border-white/20">
+                  <span>View Session &rarr;</span>
+                </div>
               </div>
             </div>
           );

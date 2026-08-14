@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase/client";
 import { Database } from "@/lib/supabase/database.types";
@@ -90,6 +91,34 @@ export default function StudentAttendancePage({
           return;
         }
         setSession(sessionData);
+
+        // 2b. Volunteer authorization guard: must be confirmed (Approved) for this session/batch
+        if (role === "Volunteer") {
+          let sessionIds = [sessionId];
+          if (sessionData.batch_id) {
+            const { data: batchSessions } = await supabase
+              .from("sessions")
+              .select("id")
+              .eq("batch_id", sessionData.batch_id);
+            if (batchSessions && batchSessions.length > 0) {
+              sessionIds = batchSessions.map(s => s.id);
+            }
+          }
+
+          const { data: userEnrollment } = await supabase
+            .from("session_enrollments")
+            .select("id, status")
+            .in("session_id", sessionIds)
+            .eq("user_id", authUser.id)
+            .eq("status", "Approved")
+            .maybeSingle();
+
+          if (!userEnrollment) {
+            toast.error("You must be a confirmed volunteer for this session to track student attendance.");
+            router.replace(`/schedule/${sessionId}`);
+            return;
+          }
+        }
 
         // 3. Enrollment-Based Fetching: Query student_attendance for this sessionId joining students
         const { data: attendanceData, error: attendanceErr } = await supabase
@@ -536,7 +565,13 @@ export default function StudentAttendancePage({
                   >
                     {/* Name Column */}
                     <td className="px-5 py-4 font-bold text-zinc-900 dark:text-zinc-100 text-base">
-                      {student.name}
+                      <Link
+                        href={`/students/${student.id}`}
+                        className="hover:text-emerald-600 dark:hover:text-emerald-400 hover:underline transition-colors inline-flex items-center gap-1.5"
+                        title="View Student Profile"
+                      >
+                        <span>{student.name}</span>
+                      </Link>
                     </td>
 
                     {/* Status Column */}

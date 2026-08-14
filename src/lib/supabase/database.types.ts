@@ -170,7 +170,6 @@ export type Database = {
           backup_id: string | null
           notes: string | null
           is_urgent: boolean | null
-          facilitator_id: string | null
         }
         Insert: {
           capacity: number
@@ -185,7 +184,6 @@ export type Database = {
           backup_id?: string | null
           notes?: string | null
           is_urgent?: boolean | null
-          facilitator_id?: string | null
         }
         Update: {
           capacity?: number
@@ -200,7 +198,6 @@ export type Database = {
           backup_id?: string | null
           notes?: string | null
           is_urgent?: boolean | null
-          facilitator_id?: string | null
         }
         Relationships: [
           {
@@ -627,29 +624,47 @@ export type Database = {
         Row: {
           id: string
           student_id: string | null
-          date: string
-          subject: string
-          score: number | null
+          session_id: string | null
+          exam_type: string | null
+          score_achieved: number | null
+          max_score: number | null
+          status: string | null
+          date_administered: string | null
+          recorded_by: string | null
           notes: string | null
           created_at: string
+          date: string
+          subject: string
         }
         Insert: {
           id?: string
           student_id?: string | null
-          date: string
-          subject: string
-          score?: number | null
+          session_id?: string | null
+          exam_type?: string | null
+          score_achieved?: number | null
+          max_score?: number | null
+          status?: string | null
+          date_administered?: string | null
+          recorded_by?: string | null
           notes?: string | null
           created_at?: string
+          date: string
+          subject: string
         }
         Update: {
           id?: string
           student_id?: string | null
-          date?: string
-          subject?: string
-          score?: number | null
+          session_id?: string | null
+          exam_type?: string | null
+          score_achieved?: number | null
+          max_score?: number | null
+          status?: string | null
+          date_administered?: string | null
+          recorded_by?: string | null
           notes?: string | null
           created_at?: string
+          date?: string
+          subject?: string
         }
         Relationships: [
           {
@@ -657,6 +672,20 @@ export type Database = {
             columns: ["student_id"]
             isOneToOne: false
             referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessments_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessments_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           }
         ]
